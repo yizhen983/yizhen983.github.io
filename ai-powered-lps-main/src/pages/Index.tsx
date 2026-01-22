@@ -1,4 +1,3 @@
-<script type="module" src="script.js"></script>
 import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
