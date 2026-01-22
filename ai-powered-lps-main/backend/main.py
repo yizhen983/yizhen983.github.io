@@ -46,20 +46,26 @@ def extract_text_from_file(file_content: bytes, filename: str) -> str:
 
 def clean_json_response(response_text: str) -> dict:
     # Remove markdown code blocks if present
-    json_match = re.search(r'```json\s*(.*?)\s*```', response_text, re.DOTALL)
-    if json_match:
-        json_str = json_match.group(1)
-    else:
-        json_str = response_text.strip()
+    json_str = response_text
+    if "```json" in response_text:
+        json_str = response_text.split("```json")[1].split("```")[0].strip()
+    elif "```" in response_text:
+        json_str = response_text.split("```")[1].split("```")[0].strip()
+    
+    # Remove any potential leading/trailing non-JSON characters
+    json_str = re.sub(r'^[^{]*', '', json_str)
+    json_str = re.sub(r'[^}]*$', '', json_str)
     
     try:
         return json.loads(json_str)
-    except json.JSONDecodeError:
-        # Fallback: try to find anything that looks like a JSON object
-        json_match = re.search(r'\{.*\}', json_str, re.DOTALL)
+    except json.JSONDecodeError as e:
+        print(f"JSON Decode Error: {e}")
+        print(f"Attempted to parse: {json_str}")
+        # Last resort: regex for the outermost braces
+        json_match = re.search(r'(\{.*\})', json_str, re.DOTALL)
         if json_match:
-            return json.loads(json_match.group(0))
-        raise ValueError("Could not parse JSON from Gemini response")
+            return json.loads(json_match.group(1))
+        raise ValueError(f"Could not parse JSON from Gemini response: {str(e)}")
 
 @app.post("/api/upload-lesson")
 async def upload_lesson(file: UploadFile = File(...)):
@@ -73,7 +79,7 @@ async def upload_lesson(file: UploadFile = File(...)):
     教材內容：
     {text_content}
     
-    JSON 結構要求：
+    JSON 結構要求（請確保所有欄位都存在，若無內容請給空陣列）：
     {{
       "dialogue": {{
         "content": {{
