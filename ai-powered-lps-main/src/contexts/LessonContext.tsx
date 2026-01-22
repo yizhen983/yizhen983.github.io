@@ -50,7 +50,7 @@ interface LessonContextType {
   lessonData: LessonData | null;
   parsingStep: number;
   parsingSteps: string[];
-  startParsing: (demoMode?: boolean, file?: File) => Promise<void>;
+  startParsing: (demoMode?: boolean) => Promise<void>;
   resetParsing: () => void;
 }
 
@@ -70,83 +70,48 @@ export const LessonProvider = ({ children }: { children: ReactNode }) => {
   const [lessonData, setLessonData] = useState<LessonData | null>(null);
   const [parsingStep, setParsingStep] = useState(0);
 
-  const startParsing = async (demoMode: boolean = false, file?: File) => {
+  const startParsing = async (demoMode: boolean = false) => {
     setIsParsed(false);
     setIsParsingComplete(false);
     setIsDemoMode(demoMode);
     setParsingStep(0);
 
-    if (demoMode) {
-      // Simulate multi-step parsing with delays for demo mode
-      for (let i = 0; i < parsingStepsData.length; i++) {
-        setParsingStep(i);
-        await new Promise(resolve => setTimeout(resolve, 1200));
-      }
-      
-      const parsedData: LessonData = {
-        dialogue: {
-          content: dialogueContent,
-          vocabulary: dialogueVocabulary,
-          grammar: dialogueGrammar,
-          references: dialogueReferences,
-        },
-        essay: {
-          content: essayContent,
-          vocabulary: essayVocabulary,
-          grammar: essayGrammar,
-          references: essayReferences,
-        },
-      };
-      setLessonData(parsedData);
-    } else if (file) {
-      try {
-        // Step 1: Reading File
-        setParsingStep(0);
-        const formData = new FormData();
-        formData.append("file", file);
-
-        // Step 2: Extracting (Simulated delay while fetching)
-        const fetchPromise = fetch("/api/upload-lesson", {
-          method: "POST",
-          body: formData,
-        });
-
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        setParsingStep(1);
-        
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        setParsingStep(2);
-
-        const response = await fetchPromise;
-        if (!response.ok) throw new Error("Failed to upload lesson");
-        
-        const data = await response.json();
-        
-        // Step 3: Generating
-        setParsingStep(3);
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
-        setLessonData(data);
-      } catch (error) {
-        console.error("Error parsing lesson:", error);
-        // Fallback to empty template on error
-        setLessonData({
-          dialogue: {
-            content: emptyDialogueContent as typeof dialogueContent,
-            vocabulary: [],
-            grammar: [],
-            references: [],
-          },
-          essay: {
-            content: emptyEssayContent as typeof essayContent,
-            vocabulary: [],
-            grammar: [],
-            references: [],
-          },
-        });
-      }
+    // Simulate multi-step parsing with delays
+    for (let i = 0; i < parsingStepsData.length; i++) {
+      setParsingStep(i);
+      await new Promise(resolve => setTimeout(resolve, 1200));
     }
 
+    // Populate with demo data or empty template based on mode
+    const parsedData: LessonData = demoMode ? {
+      dialogue: {
+        content: dialogueContent,
+        vocabulary: dialogueVocabulary,
+        grammar: dialogueGrammar,
+        references: dialogueReferences,
+      },
+      essay: {
+        content: essayContent,
+        vocabulary: essayVocabulary,
+        grammar: essayGrammar,
+        references: essayReferences,
+      },
+    } : {
+      dialogue: {
+        content: emptyDialogueContent as typeof dialogueContent,
+        vocabulary: [],
+        grammar: [],
+        references: [],
+      },
+      essay: {
+        content: emptyEssayContent as typeof essayContent,
+        vocabulary: [],
+        grammar: [],
+        references: [],
+      },
+    };
+
+    setLessonData(parsedData);
     setIsParsed(true);
     setIsParsingComplete(true);
   };
