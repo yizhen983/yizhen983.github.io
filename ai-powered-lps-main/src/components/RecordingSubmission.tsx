@@ -107,11 +107,34 @@ const RecordingSubmission = ({ targetText, targetPinyin }: RecordingSubmissionPr
     setIsProcessing(false);
   };
 
-  const submitRecording = () => {
-    setIsSubmitted(true);
-    toast.success("檔案已儲存，已傳送至教師後台", {
-      description: "File saved successfully. Sent to teacher dashboard.",
-    });
+  const submitRecording = async () => {
+    if (!recordedAudioUrl) return;
+
+    try {
+      const response = await fetch(recordedAudioUrl);
+      const blob = await response.blob();
+      
+      const formData = new FormData();
+      formData.append("file", blob, "recording.wav");
+
+      const uploadResponse = await fetch("/api/save-recording", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!uploadResponse.ok) throw new Error("Upload failed");
+
+      const result = await uploadResponse.json();
+      console.log("Recording saved:", result);
+
+      setIsSubmitted(true);
+      toast.success("檔案已儲存，已傳送至教師後台", {
+        description: "File saved successfully. Sent to teacher dashboard.",
+      });
+    } catch (error) {
+      console.error("Error saving recording:", error);
+      toast.error("儲存錄音失敗，請稍後再試");
+    }
   };
 
   return (
