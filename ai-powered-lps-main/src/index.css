@@ -1,0 +1,161 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;500;600;700&family=Noto+Sans+TC:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Silicon Island Professional Theme */
+    --background: 210 20% 98%;
+    --foreground: 210 50% 10%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 210 50% 10%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 210 50% 10%;
+
+    /* Deep Navy Primary */
+    --primary: 210 100% 12%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Sage Green Secondary */
+    --secondary: 100 25% 53%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 210 15% 92%;
+    --muted-foreground: 210 20% 40%;
+
+    /* Sage Green Accent */
+    --accent: 100 25% 53%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 210 20% 88%;
+    --input: 210 20% 88%;
+    --ring: 100 25% 53%;
+
+    --radius: 0.5rem;
+
+    /* Custom semantic tokens */
+    --navy: 210 100% 12%;
+    --navy-light: 210 60% 25%;
+    --sage: 100 25% 53%;
+    --sage-light: 100 25% 75%;
+    --sage-dark: 100 30% 40%;
+    --gold: 42 80% 55%;
+    --gold-light: 42 75% 70%;
+    --gold-dark: 42 85% 40%;
+    
+    /* Gradients */
+    --gradient-hero: linear-gradient(135deg, hsl(210 100% 12%) 0%, hsl(210 60% 25%) 100%);
+    --gradient-sage: linear-gradient(135deg, hsl(100 25% 53%) 0%, hsl(100 30% 40%) 100%);
+    --gradient-subtle: linear-gradient(180deg, hsl(210 20% 98%) 0%, hsl(210 15% 95%) 100%);
+    --gradient-gold: linear-gradient(135deg, hsl(42 80% 55%) 0%, hsl(42 85% 40%) 100%);
+    
+    /* Shadows */
+    --shadow-card: 0 4px 24px -4px hsl(210 100% 12% / 0.08);
+    --shadow-elevated: 0 12px 40px -8px hsl(210 100% 12% / 0.15);
+    --shadow-glow: 0 0 40px hsl(100 25% 53% / 0.2);
+    --shadow-gold: 0 0 40px hsl(42 80% 55% / 0.25);
+
+    /* Sidebar */
+    --sidebar-background: 210 100% 12%;
+    --sidebar-foreground: 0 0% 95%;
+    --sidebar-primary: 100 25% 53%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 210 60% 20%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 210 60% 20%;
+    --sidebar-ring: 100 25% 53%;
+  }
+
+  .dark {
+    --background: 210 50% 6%;
+    --foreground: 210 20% 95%;
+
+    --card: 210 50% 10%;
+    --card-foreground: 210 20% 95%;
+
+    --popover: 210 50% 10%;
+    --popover-foreground: 210 20% 95%;
+
+    --primary: 100 25% 53%;
+    --primary-foreground: 210 50% 6%;
+
+    --secondary: 210 40% 20%;
+    --secondary-foreground: 210 20% 95%;
+
+    --muted: 210 40% 15%;
+    --muted-foreground: 210 15% 60%;
+
+    --accent: 100 25% 45%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 62% 40%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 210 40% 18%;
+    --input: 210 40% 18%;
+    --ring: 100 25% 53%;
+
+    --sidebar-background: 210 50% 8%;
+    --sidebar-foreground: 210 20% 90%;
+    --sidebar-primary: 100 25% 53%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 210 40% 15%;
+    --sidebar-accent-foreground: 210 20% 95%;
+    --sidebar-border: 210 40% 15%;
+    --sidebar-ring: 100 25% 53%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Noto Sans TC', system-ui, sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Noto Serif TC', serif;
+  }
+}
+
+@layer components {
+  .text-gradient-navy {
+    background: linear-gradient(135deg, hsl(var(--navy)) 0%, hsl(var(--navy-light)) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .text-gradient-sage {
+    background: linear-gradient(135deg, hsl(var(--sage)) 0%, hsl(var(--sage-dark)) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .circuit-pattern {
+    background-image: 
+      linear-gradient(90deg, hsl(var(--sage) / 0.03) 1px, transparent 1px),
+      linear-gradient(hsl(var(--sage) / 0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+
+  .card-hover {
+    @apply transition-all duration-300 ease-out;
+  }
+
+  .card-hover:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-elevated);
+  }
+}
