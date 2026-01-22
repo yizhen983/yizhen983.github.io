@@ -54,20 +54,18 @@ const Index = () => {
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      handleFileParsing(false, e.dataTransfer.files[0]);
-    }
+    handleFileParsing(false); // Upload mode - empty template
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      handleFileParsing(false, e.target.files[0]);
+      handleFileParsing(false); // Upload mode - empty template
     }
   };
 
-  const handleFileParsing = async (demoMode: boolean, file?: File) => {
+  const handleFileParsing = async (demoMode: boolean) => {
     setIsParsing(true);
-    await startParsing(demoMode, file);
+    await startParsing(demoMode);
     setIsParsing(false);
     navigate("/dashboard");
   };
@@ -482,7 +480,7 @@ const Index = () => {
             AI-Powered Mandarin Teacher Preparation System
           </p>
           <p className="text-primary-foreground/40 text-xs mt-4">
-            © 2026 聯合大學華語文學系學生團隊
+            © 2024 聯合大學華語文學系學生團隊
           </p>
         </div>
       </footer>
