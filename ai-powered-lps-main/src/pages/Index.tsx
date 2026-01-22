@@ -54,18 +54,20 @@ const Index = () => {
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-    handleFileParsing(false); // Upload mode - empty template
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      handleFileParsing(false, e.dataTransfer.files[0]);
+    }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      handleFileParsing(false); // Upload mode - empty template
+      handleFileParsing(false, e.target.files[0]);
     }
   };
 
-  const handleFileParsing = async (demoMode: boolean) => {
+  const handleFileParsing = async (demoMode: boolean, file?: File) => {
     setIsParsing(true);
-    await startParsing(demoMode);
+    await startParsing(demoMode, file);
     setIsParsing(false);
     navigate("/dashboard");
   };
