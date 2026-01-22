@@ -480,7 +480,7 @@ const Index = () => {
             AI-Powered Mandarin Teacher Preparation System
           </p>
           <p className="text-primary-foreground/40 text-xs mt-4">
-            © 2024 聯合大學華語文學系學生團隊
+            © 2026 聯合大學華語文學系學生團隊
           </p>
         </div>
       </footer>
