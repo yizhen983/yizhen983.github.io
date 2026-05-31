@@ -884,7 +884,7 @@ async function analyzeTextContent() {
     
     const base64ImageData = tmpCanvas.toDataURL('image/png').split(',')[1];
 
-    const apiKey = ""; 
+    const apiKey = "AQ.Ab8RN6J659WiXrOsxM29qfHE3lUWGCtQ2jqWHwUPJBETWVKp9Q"; 
     const prompt = "請精準辨識圖片中的手寫中文字。圖片中每個筆畫的起點皆標註了連續的數字序號。請判斷使用者的筆順是否正確。請回傳 JSON 格式，包含：'text' (辨識出的文字)、'analysis' (文字涵義分析)、'is_stroke_order_correct' (布林值，筆順是否完全正確)、'stroke_order_feedback' (簡短的對錯提示，如「第2筆錯誤」或「完全正確」)。不需回傳文字步驟，系統將以動畫展示。";
 
     const payload = {
