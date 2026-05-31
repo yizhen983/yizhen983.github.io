@@ -767,7 +767,7 @@ function scrubPlayback(val) {
 }
 
 // ── 送出並渲染 ──
-function submitAndRender() {
+async function submitAndRender() {
   const pts = getAllPoints();
   const n = pts.length;
   if (n < 3) return;
@@ -780,14 +780,15 @@ function submitAndRender() {
     speeds.push(Math.sqrt(dx*dx+dy*dy)/dt*100);
   }
 
+  const avgP = avg(pArr).toFixed(3);
+  const maxP = Math.max(...pArr).toFixed(3);
+  const avgS = speeds.length ? avg(speeds).toFixed(1) : '—';
+
   document.getElementById('statRow').innerHTML = [
-    [n,                             '數據點'],
-    [avg(pArr).toFixed(3),          '平均筆壓'],
-    [Math.max(...pArr).toFixed(3),  '最大筆壓'],
-    [speeds.length ? avg(speeds).toFixed(1) : '—', '平均速度']
+    [n, '數據點'], [avgP, '平均筆壓'], [maxP, '最大筆壓'], [avgS, '平均速度']
   ].map(([v,k])=>`<div class="stat"><div class="stat-val">${v}</div><div class="stat-key">${k}</div></div>`).join('');
 
-  document.getElementById('dashMeta').textContent = new Date().toLocaleString('zh-TW') + '　紀錄分析';
+  document.getElementById('dashMeta').textContent = new Date().toLocaleString('zh-TW', { hour12: false }) + '　紀錄分析';
 
   const dash = document.getElementById('dashboard');
   dash.classList.add('visible');
@@ -795,10 +796,12 @@ function submitAndRender() {
   document.getElementById('dot').className = 'dot done';
   document.getElementById('statusTxt').textContent = '分析完成';
 
-  analyzeEmotion(speeds, pArr);
-  analyzeTextContent(); 
-  saveToSheet();
-
+  // 取得運算結果並等待 AI 辨識完成
+  const emoData = analyzeEmotion(speeds, pArr);
+  const ocrData = await analyzeTextContent(); 
+  
+  // 將所有數據統整打包發送
+  saveToSheet(n, avgP, maxP, avgS, emoData, ocrData);
   initPlaybackData();
 }
 
@@ -887,7 +890,12 @@ async function analyzeTextContent() {
     const keyPart1 = "AQ.Ab8RN6LHzO9caq4OyzM"; 
     const keyPart2 = "eEZkcSVO173yrb5btNpXLpn6nUW3ldw";
     const apiKey = keyPart1 + keyPart2;
-    const prompt = "請精準辨識圖片中的手寫中文字。圖片中每個筆畫的起點皆標註了連續的數字序號。請判斷使用者的筆順是否正確。請回傳 JSON 格式，包含：'text' (辨識出的文字)、'analysis' (文字涵義分析)、'is_stroke_order_correct' (布林值，筆順是否完全正確)、'stroke_order_feedback' (簡短的對錯提示，如「第2筆錯誤」或「完全正確」)。不需回傳文字步驟，系統將以動畫展示。";
+   const prompt = `請精準辨識圖片中的手寫中文字。圖片中每個筆畫的起點皆標註了紅色的連續數字（1代表第一筆，2代表第二筆）。
+  請執行以下任務並務必以 JSON 格式回傳，絕不能遺漏任何欄位：
+  1. 'text': 辨識出的文字。
+  2. 'analysis': 該文字的文化涵義、字形結構或情境分析（至少30字）。
+  3. 'is_stroke_order_correct': 布林值。請務必嚴格依據「台灣教育部標準繁體字筆順」來檢查圖片上的數字順序是否與標準相符。
+  4. 'stroke_order_feedback': 具體的對錯提示。若錯誤，請明確指出「第X筆應該是O，但使用者寫成X」；若完全正確，請回傳「筆順完全正確，符合標準」。不可留白。`;
 
     const payload = {
       contents: [{
@@ -933,44 +941,31 @@ async function analyzeTextContent() {
       let strokeHTML = "";
       if (strokeOrderFeedback) {
         if (isStrokeOrderCorrect) {
-          strokeHTML = `
-            <div class="ocr-analysis" style="background: #f0fdf4; border-color: #bbf7d0;">
-              <div class="ocr-analysis-title" style="color: #16a34a;">✅ 筆順正確</div>
-              <div>${strokeOrderFeedback}</div>
-            </div>`;
+          strokeHTML = `<div class="ocr-analysis" style="background: #f0fdf4; border-color: #bbf7d0;"><div class="ocr-analysis-title" style="color: #16a34a;">✅ 筆順正確</div><div>${strokeOrderFeedback}</div></div>`;
         } else {
-          // 筆順錯誤時，提示使用者查看上方畫布
-          strokeHTML = `
-            <div class="ocr-analysis" style="background: #fef2f2; border-color: #fecaca;">
-              <div class="ocr-analysis-title" style="color: #dc2626;">❌ 筆順有誤</div>
-              <div style="margin-bottom: 10px;">${strokeOrderFeedback}</div>
-              <div style="font-weight: 500; color: #b91c1c; font-size: 13px;">💡 系統已在上方書寫區為您動態示範正確筆順！</div>
-            </div>`;
+          strokeHTML = `<div class="ocr-analysis" style="background: #fef2f2; border-color: #fecaca;"><div class="ocr-analysis-title" style="color: #dc2626;">❌ 筆順有誤</div><div style="margin-bottom: 10px;">${strokeOrderFeedback}</div><div style="font-weight: 500; color: #b91c1c; font-size: 13px;">💡 系統已在上方書寫區為您動態示範正確筆順！</div></div>`;
         }
       }
 
       ocrBox.innerHTML = `
         <div class="ocr-text">${text.replace(/\n/g, '<br>')}</div>
         ${strokeHTML}
-        ${analysis ? `
-        <div class="ocr-analysis">
-          <div class="ocr-analysis-title">💡 涵義與意圖分析</div>
-          <div>${analysis}</div>
-        </div>` : ''}
+        ${analysis ? `<div class="ocr-analysis"><div class="ocr-analysis-title">💡 涵義與意圖分析</div><div>${analysis}</div></div>` : ''}
         <div class="ocr-stats">共辨識出 ${text.replace(/\s/g, '').length} 個字元</div>
       `;
       
-      // 將動畫渲染到上方書寫畫布的遮罩層
-      if (!isStrokeOrderCorrect && text) {
-        showCorrectionOnCanvas(text);
-      }
+      if (!isStrokeOrderCorrect && text) showCorrectionOnCanvas(text);
+      
+      return { text: text||"", analysis: analysis||"", isCorrect: isStrokeOrderCorrect?"正確":"錯誤", feedback: strokeOrderFeedback||"" };
       
     } else {
       ocrBox.innerHTML = `<div class="ocr-empty">未能清晰辨識出文字。<br>請嘗試寫更清楚的字跡。</div>`;
+      return { text: "", analysis: "", isCorrect: "", feedback: "" };
     }
   } catch (err) {
     console.error(err);
     ocrBox.innerHTML = `<div class="ocr-empty" style="color:var(--red)">辨識過程發生錯誤，請稍後再試。</div>`;
+    return { text: "", analysis: "", isCorrect: "", feedback: "" };
   }
 }
 
@@ -1062,15 +1057,44 @@ function analyzeEmotion(speeds, pArr) {
   setTimeout(() => {
     box.querySelectorAll('.ebar-fill').forEach(el => { el.style.width = el.dataset.w; });
   }, 80);
+
+  return {
+    primary: top.name,
+    tension: Math.round(scores.tension*100),
+    calm: Math.round(scores.calm*100),
+    anger: Math.round(scores.anger*100),
+    sadness: Math.round(scores.sadness*100),
+    joy: Math.round(scores.joy*100)
+  };
 }
 
-function saveToSheet() {
+function saveToSheet(n, avgP, maxP, avgS, emoData, ocrData) {
   const msg = document.getElementById('saveMsg');
   msg.className = 'save-msg'; msg.textContent = '儲存中...';
+  
+  const payload = {
+    session: 'session_' + Date.now(),
+    pointsCount: n,
+    avgPressure: avgP,
+    maxPressure: maxP,
+    avgSpeed: avgS,
+    ocrText: ocrData.text,
+    ocrAnalysis: ocrData.analysis,
+    strokeCorrect: ocrData.isCorrect,
+    strokeFeedback: ocrData.feedback,
+    primaryEmotion: emoData.primary,
+    tension: emoData.tension,
+    calm: emoData.calm,
+    anger: emoData.anger,
+    sadness: emoData.sadness,
+    joy: emoData.joy,
+    points: getAllPoints()
+  };
+
   fetch(GAS_URL, {
     method:'POST', mode:'no-cors',
     headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({session:'session_'+Date.now(), points:getAllPoints()})
+    body: JSON.stringify(payload)
   }).then(()=>{
     msg.className='save-msg ok';
     msg.textContent='✓ 雲端資料已同步';
