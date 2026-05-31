@@ -891,11 +891,11 @@ async function analyzeTextContent() {
     const keyPart2 = "eEZkcSVO173yrb5btNpXLpn6nUW3ldw";
     const apiKey = keyPart1 + keyPart2;
    const prompt = `請精準辨識圖片中的手寫中文字。圖片中每個筆畫的起點皆標註了紅色的連續數字（1代表第一筆，2代表第二筆）。
-  請執行以下任務並務必以 JSON 格式回傳，絕不能遺漏任何欄位：
-  1. 'text': 辨識出的文字。
-  2. 'analysis': 該文字的文化涵義、字形結構或情境分析（至少30字）。
-  3. 'is_stroke_order_correct': 布林值。請務必嚴格依據「台灣教育部標準繁體字筆順」來檢查圖片上的數字順序是否與標準相符。
-  4. 'stroke_order_feedback': 具體的對錯提示。若錯誤，請明確指出「第X筆應該是O，但使用者寫成X」；若完全正確，請回傳「筆順完全正確，符合標準」。不可留白。`;
+請執行以下任務並務必以 JSON 格式回傳，絕不能遺漏任何欄位：
+1. 'text': 辨識出的文字。
+2. 'analysis': 該文字的文化涵義、字形結構或情境分析（至少30字）。
+3. 'is_stroke_order_correct': 布林值。請務必嚴格依據「台灣教育部標準繁體字筆順」來檢查圖片上的數字順序是否與標準相符。
+4. 'stroke_order_feedback': 具體的對錯提示。若錯誤，請明確指出「第X筆應該是O，但使用者寫成X」；若完全正確，請回傳「筆順完全正確，符合標準」。不可留白。`;
 
     const payload = {
       contents: [{
