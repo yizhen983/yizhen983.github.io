@@ -399,7 +399,6 @@ function getStrokeWidth(pressure) {
 function eraseHitTest(x, y) {
   let hit = false;
   const eraseRadius = Math.max(15, brushSize * 2.5); 
-
   for (let i = strokes.length - 1; i >= 0; i--) {
     const stroke = strokes[i];
     for (let pt of stroke.points) {
@@ -412,31 +411,23 @@ function eraseHitTest(x, y) {
       }
     }
   }
-
-  if (hit) {
-    redrawAll(); 
-  }
+  if (hit) redrawAll(); 
 }
 
 function redrawAll() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.globalCompositeOperation = 'source-over';
-  
   for (let stroke of strokes) {
     if (!stroke.points || stroke.points.length === 0) continue;
-    
     ctx.fillStyle = '#1a1917';
     ctx.strokeStyle = '#1a1917';
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    
     const firstPt = stroke.points[0];
     const w1 = getStrokeWidth(firstPt.pressure);
-    
     ctx.beginPath();
     ctx.arc(firstPt.x, firstPt.y, w1 / 2, 0, Math.PI * 2);
     ctx.fill();
-    
     if (stroke.points.length > 1) {
       let prevPt = stroke.points[0];
       for (let i = 1; i < stroke.points.length; i++) {
@@ -457,32 +448,23 @@ function startStroke(e) {
   activePointerId = e.pointerId;
   try { canvas.setPointerCapture(e.pointerId); } catch(err){}
   canvasRect = canvas.getBoundingClientRect(); 
-
   const pos = getPos(e.clientX, e.clientY);
-  lastX = pos.x;
-  lastY = pos.y;
-
+  lastX = pos.x; lastY = pos.y;
   if (currentTool === 'eraser') {
     eraseHitTest(pos.x, pos.y);
     return;
   }
-
   currentStroke = { points: [] };
   strokes.push(currentStroke);
-
   const currentPressure = e.pressure > 0 ? e.pressure : 0.3; 
   lastSmoothedPressure = currentPressure; 
   const width = getStrokeWidth(lastSmoothedPressure);
-  
   ctx.globalCompositeOperation = 'source-over';
   ctx.fillStyle = '#1a1917';
-
   ctx.beginPath();
   ctx.arc(lastX, lastY, width / 2, 0, Math.PI * 2);
   ctx.fill();
-
   record(e, lastX, lastY, lastSmoothedPressure);
-
   document.getElementById('writeCard').classList.add('writing');
   document.getElementById('dot').className = 'dot live';
   document.getElementById('statusTxt').textContent = '書寫中...';
@@ -495,62 +477,46 @@ canvas.addEventListener('pointerdown', e => {
     liveStripReady = false;
     return;
   }
-  
-  if (isDrawing && activePointerId !== e.pointerId) {
-    endStroke(); 
-  }
-  
+  if (isDrawing && activePointerId !== e.pointerId) endStroke(); 
   startStroke(e);
 });
 
 canvas.addEventListener('pointermove', e => {
   e.preventDefault();
-  
   if (!isDrawing && (e.pointerType === 'pen' || e.pointerType === 'mouse') && (e.buttons > 0 || e.pressure > 0)) {
     startStroke(e);
   }
-
   if (!isDrawing || e.pointerId !== activePointerId) return;
-
   let events = [e];
   if (e.getCoalescedEvents) {
     const coalesced = e.getCoalescedEvents();
     if (coalesced && coalesced.length > 0) events = coalesced;
   }
-
   if (currentTool === 'eraser') {
     for (let ev of events) {
       const pos = getPos(ev.clientX, ev.clientY);
       eraseHitTest(pos.x, pos.y);
-      
       latestUIState = { x: pos.x, y: pos.y, p: ev.pressure, tx: ev.tiltX, ty: ev.tiltY, type: ev.pointerType, count: getAllPoints().length };
       if (!uiAnimationFrame) uiAnimationFrame = requestAnimationFrame(renderLiveUI);
     }
     return; 
   }
-  
   ctx.globalCompositeOperation = 'source-over';
   ctx.strokeStyle = '#1a1917';
   ctx.lineCap = 'round'; 
   ctx.lineJoin = 'round';
-
   for (let ev of events) {
     const pos = getPos(ev.clientX, ev.clientY);
     const targetPressure = ev.pressure > 0 ? ev.pressure : 0.3;
-    
     lastSmoothedPressure = lastSmoothedPressure * 0.75 + targetPressure * 0.25;
     const width = getStrokeWidth(lastSmoothedPressure);
-    
     ctx.lineWidth = width;
     ctx.beginPath();
     ctx.moveTo(lastX, lastY);
     ctx.lineTo(pos.x, pos.y); 
     ctx.stroke();
-    
     record(ev, pos.x, pos.y, lastSmoothedPressure);
-    
-    lastX = pos.x;
-    lastY = pos.y;
+    lastX = pos.x; lastY = pos.y;
   }
 });
 
@@ -563,17 +529,12 @@ function handlePointerEnd(e) {
     activePointerId = null;
   }
 }
-
 canvas.addEventListener('pointerup', handlePointerEnd);
 canvas.addEventListener('pointercancel', handlePointerEnd);
 
 function renderLiveUI() {
-  if (!latestUIState) {
-    uiAnimationFrame = null;
-    return;
-  }
+  if (!latestUIState) { uiAnimationFrame = null; return; }
   const { x, y, p, tx, ty, type, count } = latestUIState;
-  
   if (!liveStripReady) {
     document.getElementById('liveStrip').innerHTML = 
       `<span class="chip">X <b id="valX">0</b></span>
@@ -583,7 +544,6 @@ function renderLiveUI() {
        <span class="chip">tiltY <b id="valTY">0°</b></span>`;
     liveStripReady = true;
   }
-
   document.getElementById('deviceTag').textContent = type === 'mouse' ? '滑鼠' : '觸控筆';
   document.getElementById('valX').textContent = Math.round(x);
   document.getElementById('valY').textContent = Math.round(y);
@@ -591,7 +551,6 @@ function renderLiveUI() {
   document.getElementById('valTX').textContent = Math.round(tx||0) + '°';
   document.getElementById('valTY').textContent = Math.round(ty||0) + '°';
   document.getElementById('ptsCount').textContent = count + ' 點';
-
   uiAnimationFrame = null;
 }
 
@@ -603,11 +562,8 @@ function record(e, x, y, p) {
       tiltX:e.tiltX||0, tiltY:e.tiltY||0, type:e.pointerType 
     });
   }
-    
   latestUIState = { x, y, p, tx: e.tiltX, ty: e.tiltY, type: e.pointerType, count: getAllPoints().length };
-  if (!uiAnimationFrame) {
-    uiAnimationFrame = requestAnimationFrame(renderLiveUI);
-  }
+  if (!uiAnimationFrame) uiAnimationFrame = requestAnimationFrame(renderLiveUI);
 }
 
 function endStroke() {
@@ -634,13 +590,13 @@ function clearAll() {
   document.getElementById('saveMsg').textContent = '';
   document.getElementById('sheetLink').style.display = 'none';
   document.getElementById('dashboard').classList.remove('visible');
-  document.getElementById('correctionOverlay').classList.remove('active'); // 確保清空時遮罩也關閉
+  document.getElementById('correctionOverlay').classList.remove('active'); 
 }
 
 function closeCorrection() {
   document.getElementById('correctionOverlay').classList.remove('active');
   document.getElementById('canvas-hw-container').innerHTML = '';
-  clearAll(); // 自動清空畫布，方便使用者馬上重新練習
+  clearAll(); 
 }
 
 // ── 筆順重播核心邏輯 ──
@@ -651,30 +607,19 @@ let playbackRAF = null;
 
 function initPlaybackData() {
   const pbCanvas = document.getElementById('playbackCanvas');
-  pbCanvas.width = canvas.width;
-  pbCanvas.height = canvas.height;
-  
+  pbCanvas.width = canvas.width; pbCanvas.height = canvas.height;
   flatPoints = [];
   strokes.forEach((stroke, sIdx) => {
     stroke.points.forEach((pt, pIdx) => {
-      flatPoints.push({
-        x: pt.x, y: pt.y, pressure: pt.pressure,
-        strokeIdx: sIdx, isStart: pIdx === 0
-      });
+      flatPoints.push({ x: pt.x, y: pt.y, pressure: pt.pressure, strokeIdx: sIdx, isStart: pIdx === 0 });
     });
   });
-  
   const slider = document.getElementById('playbackSlider');
   if (flatPoints.length > 0) {
-    slider.max = flatPoints.length - 1;
-    slider.value = flatPoints.length - 1;
-    playbackIndex = flatPoints.length - 1;
+    slider.max = flatPoints.length - 1; slider.value = flatPoints.length - 1; playbackIndex = flatPoints.length - 1;
   } else {
-    slider.max = 0;
-    slider.value = 0;
-    playbackIndex = 0;
+    slider.max = 0; slider.value = 0; playbackIndex = 0;
   }
-  
   drawPlaybackUpToIndex(playbackIndex);
   document.getElementById('btnPlayPause').textContent = '重播';
   isPlaybackPlaying = false;
@@ -685,72 +630,45 @@ function drawPlaybackUpToIndex(maxIdx) {
   const pbCanvas = document.getElementById('playbackCanvas');
   if (!pbCanvas) return;
   const pbCtx = pbCanvas.getContext('2d');
-  
   pbCtx.clearRect(0, 0, pbCanvas.width, pbCanvas.height);
   pbCtx.globalCompositeOperation = 'source-over';
-  pbCtx.lineCap = 'round';
-  pbCtx.lineJoin = 'round';
-  pbCtx.fillStyle = '#1a1917';
-  pbCtx.strokeStyle = '#1a1917';
-
+  pbCtx.lineCap = 'round'; pbCtx.lineJoin = 'round';
+  pbCtx.fillStyle = '#1a1917'; pbCtx.strokeStyle = '#1a1917';
   let lastPt = null;
-
   for (let i = 0; i <= maxIdx; i++) {
     const pt = flatPoints[i];
     if (!pt) break;
-    
     const width = getStrokeWidth(pt.pressure);
-    
     if (pt.isStart) {
-      pbCtx.beginPath();
-      pbCtx.arc(pt.x, pt.y, width / 2, 0, Math.PI * 2);
-      pbCtx.fill();
+      pbCtx.beginPath(); pbCtx.arc(pt.x, pt.y, width / 2, 0, Math.PI * 2); pbCtx.fill();
     } else if (lastPt && lastPt.strokeIdx === pt.strokeIdx) {
-      pbCtx.lineWidth = width;
-      pbCtx.beginPath();
-      pbCtx.moveTo(lastPt.x, lastPt.y);
-      pbCtx.lineTo(pt.x, pt.y);
-      pbCtx.stroke();
+      pbCtx.lineWidth = width; pbCtx.beginPath(); pbCtx.moveTo(lastPt.x, lastPt.y); pbCtx.lineTo(pt.x, pt.y); pbCtx.stroke();
     }
     lastPt = pt;
   }
 }
 
 function togglePlayback() {
-  if (isPlaybackPlaying) {
-    pausePlayback();
-  } else {
-    if (playbackIndex >= flatPoints.length - 1) {
-      playbackIndex = 0; 
-    }
-    playPlayback();
-  }
+  if (isPlaybackPlaying) pausePlayback();
+  else { if (playbackIndex >= flatPoints.length - 1) playbackIndex = 0; playPlayback(); }
 }
 
 function playPlayback() {
   isPlaybackPlaying = true;
   document.getElementById('btnPlayPause').textContent = '暫停';
-  
   const ptsPerFrame = Math.max(1, Math.floor(flatPoints.length / 150)); 
-
   function frame() {
     if (!isPlaybackPlaying) return;
-    
     playbackIndex += ptsPerFrame;
     if (playbackIndex >= flatPoints.length - 1) {
       playbackIndex = flatPoints.length - 1;
       isPlaybackPlaying = false;
       document.getElementById('btnPlayPause').textContent = '重播';
     }
-    
     document.getElementById('playbackSlider').value = playbackIndex;
     drawPlaybackUpToIndex(playbackIndex);
-    
-    if (isPlaybackPlaying) {
-      playbackRAF = requestAnimationFrame(frame);
-    }
+    if (isPlaybackPlaying) playbackRAF = requestAnimationFrame(frame);
   }
-  
   playbackRAF = requestAnimationFrame(frame);
 }
 
@@ -766,7 +684,7 @@ function scrubPlayback(val) {
   drawPlaybackUpToIndex(playbackIndex);
 }
 
-// ── 送出並渲染 ──
+// ── 送出並等待 AI 渲染 ──
 async function submitAndRender() {
   const pts = getAllPoints();
   const n = pts.length;
@@ -800,7 +718,7 @@ async function submitAndRender() {
   const emoData = analyzeEmotion(speeds, pArr);
   const ocrData = await analyzeTextContent(); 
   
-  // 將所有數據統整打包發送
+  // 將所有 17 欄位數據統整打包發送
   saveToSheet(n, avgP, maxP, avgS, emoData, ocrData);
   initPlaybackData();
 }
@@ -824,43 +742,31 @@ async function analyzeTextContent() {
   ocrBox.innerHTML = '<div class="loading-state"><div class="spinner"></div><span>AI 視覺辨識與筆順分析中...</span></div>';
 
   const pts = getAllPoints();
-  if (pts.length === 0) return;
+  if (pts.length === 0) return { text: "", analysis: "", isCorrect: "", feedback: "" };
 
   try {
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     pts.forEach(p => {
-      if (p.x < minX) minX = p.x;
-      if (p.x > maxX) maxX = p.x;
-      if (p.y < minY) minY = p.y;
-      if (p.y > maxY) maxY = p.y;
+      if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
+      if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
     });
 
     const padding = 40; 
-    minX = Math.max(0, minX - padding);
-    minY = Math.max(0, minY - padding);
-    maxX = Math.min(canvas.width, maxX + padding);
-    maxY = Math.min(canvas.height, maxY + padding);
-    const cropW = maxX - minX;
-    const cropH = maxY - minY;
+    minX = Math.max(0, minX - padding); minY = Math.max(0, minY - padding);
+    maxX = Math.min(canvas.width, maxX + padding); maxY = Math.min(canvas.height, maxY + padding);
+    const cropW = maxX - minX; const cropH = maxY - minY;
 
     if (cropW <= 0 || cropH <= 0) throw new Error("範圍無效");
 
     const tmpCanvas = document.createElement('canvas');
-    tmpCanvas.width = cropW;
-    tmpCanvas.height = cropH;
+    tmpCanvas.width = cropW; tmpCanvas.height = cropH;
     const tCtx = tmpCanvas.getContext('2d');
     
-    tCtx.fillStyle = '#ffffff';
-    tCtx.fillRect(0, 0, tmpCanvas.width, tmpCanvas.height);
+    tCtx.fillStyle = '#ffffff'; tCtx.fillRect(0, 0, tmpCanvas.width, tmpCanvas.height);
     
     strokes.forEach((stroke, idx) => {
       if (!stroke.points || stroke.points.length === 0) return;
-
-      tCtx.strokeStyle = '#1a1917';
-      tCtx.lineWidth = 3;
-      tCtx.lineCap = 'round';
-      tCtx.lineJoin = 'round';
-      
+      tCtx.strokeStyle = '#1a1917'; tCtx.lineWidth = 3; tCtx.lineCap = 'round'; tCtx.lineJoin = 'round';
       tCtx.beginPath();
       for (let i = 0; i < stroke.points.length; i++) {
         const pt = stroke.points[i];
@@ -868,74 +774,65 @@ async function analyzeTextContent() {
         else tCtx.lineTo(pt.x - minX, pt.y - minY);
       }
       tCtx.stroke();
-
-      const startPt = stroke.points[0];
-      const sx = startPt.x - minX;
-      const sy = startPt.y - minY;
-
-      tCtx.fillStyle = '#ef4444';
-      tCtx.beginPath();
-      tCtx.arc(sx, sy, 8, 0, Math.PI * 2);
-      tCtx.fill();
-
-      tCtx.fillStyle = '#ffffff';
-      tCtx.font = 'bold 10px sans-serif';
-      tCtx.textAlign = 'center';
-      tCtx.textBaseline = 'middle';
+      const sx = stroke.points[0].x - minX; const sy = stroke.points[0].y - minY;
+      tCtx.fillStyle = '#ef4444'; tCtx.beginPath(); tCtx.arc(sx, sy, 8, 0, Math.PI * 2); tCtx.fill();
+      tCtx.fillStyle = '#ffffff'; tCtx.font = 'bold 10px sans-serif'; tCtx.textAlign = 'center'; tCtx.textBaseline = 'middle';
       tCtx.fillText((idx + 1).toString(), sx, sy);
     });
     
     const base64ImageData = tmpCanvas.toDataURL('image/png').split(',')[1];
 
-    const keyPart1 = "AQ.Ab8RN6LHzO9caq4OyzM"; 
-    const keyPart2 = "eEZkcSVO173yrb5btNpXLpn6nUW3ldw";
-    const apiKey = keyPart1 + keyPart2;
-   const prompt = `請精準辨識圖片中的手寫中文字。圖片中每個筆畫的起點皆標註了紅色的連續數字（1代表第一筆，2代表第二筆）。
-  請執行以下任務並務必以 JSON 格式回傳，絕不能遺漏任何欄位：
-  1. 'text': 辨識出的文字。
-  2. 'analysis': 該文字的文化涵義、字形結構或情境分析（至少30字）。
-  3. 'is_stroke_order_correct': 布林值。請務必嚴格依據「台灣教育部標準繁體字筆順」來檢查圖片上的數字順序是否與標準相符。
-  4. 'stroke_order_feedback': 具體的對錯提示。若錯誤，請明確指出「第X筆應該是O，但使用者寫成X」；若完全正確，請回傳「筆順完全正確，符合標準」。不可留白。`;
+    // ── 完美防禦 GitHub 機器人：本地端存取金鑰 ──
+    let apiKey = localStorage.getItem('gemini_api_key');
+    if (!apiKey) {
+      apiKey = prompt("🔐 系統安全提示：\\n請貼上您的 Google Gemini API Key。\\n（此金鑰僅會儲存在您的瀏覽器本地端，絕對不會上傳，請安心使用！）");
+      if (apiKey) {
+        localStorage.setItem('gemini_api_key', apiKey.trim());
+      } else {
+        ocrBox.innerHTML = `<div class="ocr-empty" style="color:var(--red)">未提供 API Key，無法進行辨識。請重新整理網頁再試一次。</div>`;
+        return { text: "", analysis: "", isCorrect: "", feedback: "" };
+      }
+    }
+
+    // ── 高壓強制的 AI 提示詞，提升筆順判斷準確度 ──
+    const promptText = `請精準辨識圖片中的手寫中文字。圖片中每個筆畫的起點皆標註了紅色的連續數字（1代表第一筆，2代表第二筆）。
+請執行以下任務並務必以 JSON 格式回傳，絕不能遺漏任何欄位：
+1. 'text': 辨識出的文字。
+2. 'analysis': 該文字的文化涵義、字形結構或情境分析（至少30字）。
+3. 'is_stroke_order_correct': 布林值。請務必嚴格依據「台灣教育部標準繁體字筆順」來檢查圖片上的數字順序是否與標準相符。
+4. 'stroke_order_feedback': 具體的對錯提示。若錯誤，請明確指出「第X筆應該是O，但使用者寫成X」；若完全正確，請回傳「筆順完全正確，符合標準」。不可留白。`;
 
     const payload = {
-      contents: [{
-        role: "user",
-        parts: [
-          { text: prompt },
-          { inlineData: { mimeType: "image/png", data: base64ImageData } }
-        ]
-      }],
+      contents: [{ role: "user", parts: [ { text: promptText }, { inlineData: { mimeType: "image/png", data: base64ImageData } } ] }],
       generationConfig: {
         responseMimeType: "application/json",
         responseSchema: {
           type: "OBJECT",
           properties: {
-            text: { type: "STRING" },
-            analysis: { type: "STRING" },
-            is_stroke_order_correct: { type: "BOOLEAN" },
-            stroke_order_feedback: { type: "STRING" }
+            text: { type: "STRING" }, analysis: { type: "STRING" },
+            is_stroke_order_correct: { type: "BOOLEAN" }, stroke_order_feedback: { type: "STRING" }
           }
         }
       }
     };
 
-    const result = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+    const result = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey.trim()}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
     });
+
+    if(result.error) {
+      localStorage.removeItem('gemini_api_key'); // 假如鑰匙錯了，清掉讓使用者重填
+      throw new Error(result.error.message);
+    }
 
     let text = "", analysis = "", isStrokeOrderCorrect = true, strokeOrderFeedback = "";
     try {
       const rawResponse = result.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
       const data = JSON.parse(rawResponse);
-      text = data.text?.trim() || "";
-      analysis = data.analysis?.trim() || "";
+      text = data.text?.trim() || ""; analysis = data.analysis?.trim() || "";
       isStrokeOrderCorrect = data.is_stroke_order_correct !== false; 
       strokeOrderFeedback = data.stroke_order_feedback?.trim() || "";
-    } catch (e) {
-      console.error("JSON 解析失敗", e);
-    }
+    } catch (e) { console.error("JSON 解析失敗", e); }
 
     if (text) {
       let strokeHTML = "";
@@ -964,7 +861,7 @@ async function analyzeTextContent() {
     }
   } catch (err) {
     console.error(err);
-    ocrBox.innerHTML = `<div class="ocr-empty" style="color:var(--red)">辨識過程發生錯誤，請稍後再試。</div>`;
+    ocrBox.innerHTML = `<div class="ocr-empty" style="color:var(--red)">辨識過程發生錯誤，請稍後再試。若金鑰失效請重新整理更換。</div>`;
     return { text: "", analysis: "", isCorrect: "", feedback: "" };
   }
 }
@@ -972,9 +869,7 @@ async function analyzeTextContent() {
 function showCorrectionOnCanvas(text) {
   const overlay = document.getElementById('correctionOverlay');
   const container = document.getElementById('canvas-hw-container');
-  container.innerHTML = '';
-  overlay.classList.add('active');
-
+  container.innerHTML = ''; overlay.classList.add('active');
   const chars = text.match(/[\u4e00-\u9fa5]/g) || [];
   if (chars.length === 0) {
     container.innerHTML = "<span style='font-size:13px;color:#dc2626;'>（無法提供此文字的動畫示範）</span>";
@@ -985,24 +880,13 @@ function showCorrectionOnCanvas(text) {
       container.appendChild(subDiv);
       try {
         let writer = HanziWriter.create(subDiv.id, char, {
-          width: 110,  // 加大尺寸方便觀看
-          height: 110,
-          padding: 5,
-          showOutline: true,
-          strokeAnimationSpeed: 1.2,
-          delayBetweenStrokes: 150,
-          delayBetweenLoops: 2000,
-          strokeColor: '#dc2626', // 糾正用的紅色
-          radicalColor: '#16a34a'
+          width: 110, height: 110, padding: 5, showOutline: true, strokeAnimationSpeed: 1.2,
+          delayBetweenStrokes: 150, delayBetweenLoops: 2000, strokeColor: '#dc2626', radicalColor: '#16a34a'
         });
         writer.loopCharacterAnimation();
-      } catch (e) {
-        console.error("HanziWriter 渲染失敗", e);
-      }
+      } catch (e) { console.error("HanziWriter 渲染失敗", e); }
     });
   }
-  
-  // 自動將畫面平滑滾動至書寫區，確保使用者看到動畫
   document.getElementById('writeCard').scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
@@ -1010,11 +894,8 @@ function analyzeEmotion(speeds, pArr) {
   const box = document.getElementById('emotionContent');
   box.innerHTML = '<div class="loading-state"><div class="spinner"></div><span>情緒分析中...</span></div>';
 
-  const avgP   = avg(pArr);
-  const maxP   = Math.max(...pArr);
-  const stdP   = std(pArr);
-  const avgSpd = speeds.length ? avg(speeds) : 0;
-  const stdSpd = speeds.length ? std(speeds) : 0;
+  const avgP   = avg(pArr); const maxP   = Math.max(...pArr); const stdP   = std(pArr);
+  const avgSpd = speeds.length ? avg(speeds) : 0; const stdSpd = speeds.length ? std(speeds) : 0;
   const pauseRatio = speeds.length ? speeds.filter(s=>s<2).length / speeds.length : 0;
 
   const tension = clamp(avgP*0.45 + stdP*1.1 + (avgSpd/300)*0.35 + stdSpd/300*0.2);
@@ -1054,17 +935,12 @@ function analyzeEmotion(speeds, pArr) {
       </div>
     </div>`;
 
-  setTimeout(() => {
-    box.querySelectorAll('.ebar-fill').forEach(el => { el.style.width = el.dataset.w; });
-  }, 80);
+  setTimeout(() => { box.querySelectorAll('.ebar-fill').forEach(el => { el.style.width = el.dataset.w; }); }, 80);
 
   return {
     primary: top.name,
-    tension: Math.round(scores.tension*100),
-    calm: Math.round(scores.calm*100),
-    anger: Math.round(scores.anger*100),
-    sadness: Math.round(scores.sadness*100),
-    joy: Math.round(scores.joy*100)
+    tension: Math.round(scores.tension*100), calm: Math.round(scores.calm*100),
+    anger: Math.round(scores.anger*100), sadness: Math.round(scores.sadness*100), joy: Math.round(scores.joy*100)
   };
 }
 
@@ -1074,20 +950,9 @@ function saveToSheet(n, avgP, maxP, avgS, emoData, ocrData) {
   
   const payload = {
     session: 'session_' + Date.now(),
-    pointsCount: n,
-    avgPressure: avgP,
-    maxPressure: maxP,
-    avgSpeed: avgS,
-    ocrText: ocrData.text,
-    ocrAnalysis: ocrData.analysis,
-    strokeCorrect: ocrData.isCorrect,
-    strokeFeedback: ocrData.feedback,
-    primaryEmotion: emoData.primary,
-    tension: emoData.tension,
-    calm: emoData.calm,
-    anger: emoData.anger,
-    sadness: emoData.sadness,
-    joy: emoData.joy,
+    pointsCount: n, avgPressure: avgP, maxPressure: maxP, avgSpeed: avgS,
+    ocrText: ocrData.text, ocrAnalysis: ocrData.analysis, strokeCorrect: ocrData.isCorrect, strokeFeedback: ocrData.feedback,
+    primaryEmotion: emoData.primary, tension: emoData.tension, calm: emoData.calm, anger: emoData.anger, sadness: emoData.sadness, joy: emoData.joy,
     points: getAllPoints()
   };
 
@@ -1096,12 +961,10 @@ function saveToSheet(n, avgP, maxP, avgS, emoData, ocrData) {
     headers:{'Content-Type':'application/json'},
     body: JSON.stringify(payload)
   }).then(()=>{
-    msg.className='save-msg ok';
-    msg.textContent='✓ 雲端資料已同步';
+    msg.className='save-msg ok'; msg.textContent='✓ 雲端資料已同步';
     document.getElementById('sheetLink').style.display='inline';
   }).catch(()=>{
-    msg.className='save-msg err';
-    msg.textContent='✗ 儲存失敗，請下載 CSV 備用';
+    msg.className='save-msg err'; msg.textContent='✗ 儲存失敗，請下載 CSV 備用';
   });
 }
 
