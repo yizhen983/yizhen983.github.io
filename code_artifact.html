@@ -714,24 +714,28 @@ async function submitAndRender() {
   document.getElementById('dot').className = 'dot done';
   document.getElementById('statusTxt').textContent = '分析完成';
 
-  // 取得運算結果並等待 AI 辨識完成
   const emoData = analyzeEmotion(speeds, pArr);
   const ocrData = await analyzeTextContent(); 
   
-  // 將所有 17 欄位數據統整打包發送
   saveToSheet(n, avgP, maxP, avgS, emoData, ocrData);
   initPlaybackData();
 }
 
-async function fetchWithRetry(url, options, maxRetries = 5) {
-  const delays = [1000, 2000, 4000, 8000, 16000];
+// 關鍵修復點 1：修正錯誤捕捉邏輯，不再無效重試
+async function fetchWithRetry(url, options, maxRetries = 2) {
+  const delays = [1000, 2000];
   for (let i = 0; i < maxRetries; i++) {
     try {
       const res = await fetch(url, options);
-      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`HTTP ${res.status}: ${errText}`);
+      }
       return await res.json();
     } catch (err) {
-      if (i === maxRetries - 1) throw err;
+      if (i === maxRetries - 1 || err.message.includes('HTTP 40')) {
+        throw err;
+      }
       await new Promise(resolve => setTimeout(resolve, delays[i]));
     }
   }
@@ -782,7 +786,6 @@ async function analyzeTextContent() {
     
     const base64ImageData = tmpCanvas.toDataURL('image/png').split(',')[1];
 
-    // ── 完美防禦 GitHub 機器人：本地端存取金鑰 ──
     let apiKey = localStorage.getItem('gemini_api_key');
     if (!apiKey) {
       apiKey = prompt("🔐 系統安全提示：\\n請貼上您的 Google Gemini API Key。\\n（此金鑰僅會儲存在您的瀏覽器本地端，絕對不會上傳，請安心使用！）");
@@ -793,11 +796,7 @@ async function analyzeTextContent() {
         return { text: "", analysis: "", isCorrect: "", feedback: "" };
       }
     }
-        const keyPart1 = "AQ.Ab8RN6LHzO9caq4OyzM"; 
-    const keyPart2 = "eEZkcSVO173yrb5btNpXLpn6nUW3ldw";
-    const apiKey = keyPart1 + keyPart2;
 
-    // ── 高壓強制的 AI 提示詞，提升筆順判斷準確度 ──
     const promptText = `請精準辨識圖片中的手寫中文字。圖片中每個筆畫的起點皆標註了紅色的連續數字（1代表第一筆，2代表第二筆）。
 請執行以下任務並務必以 JSON 格式回傳，絕不能遺漏任何欄位：
 1. 'text': 辨識出的文字。
@@ -823,10 +822,7 @@ async function analyzeTextContent() {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
     });
 
-    if(result.error) {
-      localStorage.removeItem('gemini_api_key'); // 假如鑰匙錯了，清掉讓使用者重填
-      throw new Error(result.error.message);
-    }
+    if(result.error) throw new Error(result.error.message);
 
     let text = "", analysis = "", isStrokeOrderCorrect = true, strokeOrderFeedback = "";
     try {
@@ -848,23 +844,28 @@ async function analyzeTextContent() {
       }
 
       ocrBox.innerHTML = `
-        <div class="ocr-text">${text.replace(/\n/g, '<br>')}</div>
+        <div class="ocr-text">${text.replace(/\\n/g, '<br>')}</div>
         ${strokeHTML}
         ${analysis ? `<div class="ocr-analysis"><div class="ocr-analysis-title">💡 涵義與意圖分析</div><div>${analysis}</div></div>` : ''}
-        <div class="ocr-stats">共辨識出 ${text.replace(/\s/g, '').length} 個字元</div>
+        <div class="ocr-stats">共辨識出 ${text.replace(/\\s/g, '').length} 個字元</div>
       `;
-      
       if (!isStrokeOrderCorrect && text) showCorrectionOnCanvas(text);
-      
       return { text: text||"", analysis: analysis||"", isCorrect: isStrokeOrderCorrect?"正確":"錯誤", feedback: strokeOrderFeedback||"" };
-      
     } else {
       ocrBox.innerHTML = `<div class="ocr-empty">未能清晰辨識出文字。<br>請嘗試寫更清楚的字跡。</div>`;
       return { text: "", analysis: "", isCorrect: "", feedback: "" };
     }
   } catch (err) {
     console.error(err);
-    ocrBox.innerHTML = `<div class="ocr-empty" style="color:var(--red)">辨識過程發生錯誤，請稍後再試。若金鑰失效請重新整理更換。</div>`;
+    // 關鍵修復點 2：遇到金鑰錯誤時，立刻把壞掉的金鑰從記憶體刪除！
+    localStorage.removeItem('gemini_api_key');
+    ocrBox.innerHTML = `
+      <div class="ocr-empty" style="color:var(--red); line-height: 1.6;">
+        ⚠️ <b>辨識被拒絕：金鑰已失效！</b><br><br>
+        系統發現目前儲存的金鑰無法使用，已經為您清除了記憶。<br>
+        👉 <b>請去申請一把「全新」的金鑰。</b><br>
+        👉 <b>然後請「重新整理網頁」(按 F5)</b>，系統會再次跳出視窗讓您貼入新金鑰！
+      </div>`;
     return { text: "", analysis: "", isCorrect: "", feedback: "" };
   }
 }
@@ -909,11 +910,11 @@ function analyzeEmotion(speeds, pArr) {
 
   const scores = {tension, calm, anger, sadness, joy};
   const defs = {
-    tension: { name:'緊張 / 專注', icon:'😤', color:'#f97316', desc:`力道起伏明顯且速度偏快，顯示當下處於緊繃或高度專注。` },
-    calm:    { name:'平靜 / 穩定', icon:'😌', color:'#22c55e', desc:`筆壓平穩、速度均勻，停頓自然，顯示情緒穩定思緒清晰。` },
-    anger:   { name:'激動 / 急迫', icon:'😠', color:'#ef4444', desc:`偵測到極高筆壓且不規律，書寫動作強烈，顯示可能較為急迫。` },
-    sadness: { name:'疲倦 / 低落', icon:'😔', color:'#6366f1', desc:`速度緩慢、停頓較多且筆壓輕，顯示可能當下身心較為疲倦。` },
-    joy:     { name:'輕鬆 / 愉快', icon:'😊', color:'#eab308', desc:`節奏流暢自然、筆壓適中，書寫狀態輕鬆，情緒呈現正向。` },
+    tension: { name:'緊張 / 專注', icon:'😤', color:'#f97316', desc:'力道起伏明顯且速度偏快，顯示當下處於緊繃或高度專注。' },
+    calm:    { name:'平靜 / 穩定', icon:'😌', color:'#22c55e', desc:'筆壓平穩、速度均勻，停頓自然，顯示情緒穩定思緒清晰。' },
+    anger:   { name:'激動 / 急迫', icon:'😠', color:'#ef4444', desc:'偵測到極高筆壓且不規律，書寫動作強烈，顯示可能較為急迫。' },
+    sadness: { name:'疲倦 / 低落', icon:'😔', color:'#6366f1', desc:'速度緩慢、停頓較多且筆壓輕，顯示可能當下身心較為疲倦。' },
+    joy:     { name:'輕鬆 / 愉快', icon:'😊', color:'#eab308', desc:'節奏流暢自然、筆壓適中，書寫狀態輕鬆，情緒呈現正向。' },
   };
 
   const topKey = Object.keys(scores).reduce((a,b) => scores[a]>scores[b]?a:b);
@@ -974,8 +975,8 @@ function saveToSheet(n, avgP, maxP, avgS, emoData, ocrData) {
 function downloadCSV() {
   const pts = getAllPoints();
   if (!pts.length) return;
-  const blob = new Blob(['x,y,t,pressure,tiltX,tiltY,type\n' +
-    pts.map(p=>`${p.x},${p.y},${p.t},${p.pressure},${p.tiltX},${p.tiltY},${p.type}`).join('\n')],
+  const blob = new Blob(['x,y,t,pressure,tiltX,tiltY,type\\n' +
+    pts.map(p=>`${p.x},${p.y},${p.t},${p.pressure},${p.tiltX},${p.tiltY},${p.type}`).join('\\n')],
     {type:'text/csv;charset=utf-8;'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
