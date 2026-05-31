@@ -1,0 +1,1098 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>觸控筆數據分析</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<!-- 引入 HanziWriter 用於漢字筆順動態示範 -->
+<script src="https://cdn.jsdelivr.net/npm/hanzi-writer@3.5/dist/hanzi-writer.min.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:     #f6f5f2;
+  --card:   #ffffff;
+  --border: #e4e2db;
+  --text:   #1a1917;
+  --muted:  #8a8880;
+  --blue:   #2563eb;
+  --green:  #16a34a;
+  --amber:  #d97706;
+  --red:    #dc2626;
+  --font:   'DM Sans', system-ui, sans-serif;
+  --mono:   'DM Mono', monospace;
+}
+html, body { min-height: 100vh; background: var(--bg); color: var(--text); font-family: var(--font); -webkit-user-select: none; user-select: none; }
+
+.topbar {
+  height: 54px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; padding: 0 28px; gap: 14px;
+  background: var(--card); position: sticky; top: 0; z-index: 20;
+}
+.logo { font-size: 14px; font-weight: 600; letter-spacing: -.02em; }
+.logo span { color: var(--muted); font-weight: 400; }
+.topbar-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: #d1d0cb; transition: background .25s; }
+.dot.live { background: #22c55e; }
+.dot.done { background: var(--blue); }
+.status-txt { font-size: 12px; color: var(--muted); font-family: var(--mono); }
+
+.page { max-width: 1080px; margin: 0 auto; padding: 32px 24px 80px; }
+
+.write-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 16px; overflow: hidden; margin-bottom: 32px;
+  touch-action: none; 
+}
+.write-card.writing { outline: 2px solid var(--text); }
+
+.write-header {
+  padding: 12px 20px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.write-title { font-size: 13px; font-weight: 500; }
+.device-tag {
+  font-size: 11px; padding: 3px 10px; border-radius: 20px;
+  background: var(--bg); color: var(--muted); font-family: var(--mono);
+}
+
+/* ── TOOLBAR ── */
+.toolbar {
+  padding: 10px 20px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+.tool-sep { width: 1px; height: 26px; background: var(--border); margin: 0 2px; }
+.tool-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-family: var(--font); font-size: 12px; font-weight: 500;
+  padding: 6px 13px; border-radius: 8px; border: 1px solid var(--border);
+  background: transparent; color: var(--muted); cursor: pointer; transition: all .15s;
+}
+.tool-btn:hover { background: var(--bg); color: var(--text); }
+.tool-btn.active { background: var(--text); color: #fff; border-color: transparent; }
+.size-row { display: flex; align-items: center; gap: 6px; }
+.size-lbl { font-size: 11px; color: var(--muted); font-family: var(--mono); white-space: nowrap; }
+input[type=range] { width: 72px; accent-color: var(--text); cursor: pointer; }
+
+/* ── 畫布與糾正遮罩層 ── */
+.canvas-container { position: relative; width: 100%; }
+.correction-overlay {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(255, 255, 255, 0.92); z-index: 10;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  opacity: 0; pointer-events: none; transition: opacity 0.25s;
+  backdrop-filter: blur(3px); overflow-y: auto; padding: 16px;
+}
+.correction-overlay.active {
+  opacity: 1; pointer-events: auto;
+}
+.hw-large-container { display: flex; gap: 15px; flex-wrap: wrap; justify-content: center; }
+
+canvas#drawing {
+  display: block; width: 100%; height: 320px;
+  touch-action: none; background: #fff;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-user-drag: none;
+  -webkit-touch-callout: none;
+}
+canvas#drawing.pen-mode    { cursor: crosshair; }
+canvas#drawing.eraser-mode { cursor: cell; }
+
+.live-strip {
+  padding: 10px 20px; border-top: 1px solid var(--border);
+  min-height: 42px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+.chip {
+  font-size: 11px; padding: 3px 10px; border-radius: 20px;
+  background: var(--bg); color: var(--muted); font-family: var(--mono);
+}
+.chip b { color: var(--text); }
+.chip.warn { background: #fef9ec; color: var(--amber); }
+
+.write-footer {
+  padding: 12px 20px; border-top: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+}
+.pts-count { font-size: 12px; color: var(--muted); font-family: var(--mono); margin-right: auto; }
+
+button {
+  font-family: var(--font); font-size: 13px; font-weight: 500;
+  padding: 9px 20px; border-radius: 8px; border: 1px solid var(--border);
+  background: transparent; color: var(--text); cursor: pointer; transition: all .15s;
+}
+button:hover:not(:disabled) { background: var(--bg); }
+button:disabled { opacity: .35; cursor: not-allowed; }
+.btn-submit { background: var(--text); color: #fff; border-color: transparent; padding: 9px 28px; }
+.btn-submit:hover:not(:disabled) { opacity: .85; background: var(--text); }
+
+#dashboard { display: none; }
+#dashboard.visible { display: block; animation: fadeUp .4s ease both; }
+@keyframes fadeUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+
+.dash-header { display: flex; align-items: baseline; gap: 14px; margin-bottom: 22px; flex-wrap: wrap; }
+.dash-title { font-size: 22px; font-weight: 600; letter-spacing: -.03em; }
+.dash-meta { font-size: 12px; color: var(--muted); font-family: var(--mono); }
+
+/* ── CONTENT CARDS ── */
+.panel-grid {
+  display: grid; grid-template-columns: 1fr; gap: 20px; margin-bottom: 20px;
+}
+@media (min-width: 800px) { .panel-grid { grid-template-columns: 1.2fr 1fr; } }
+
+.info-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 16px; padding: 24px 28px;
+  display: flex; flex-direction: column; gap: 16px;
+}
+.info-card-header {
+  font-size: 14px; font-weight: 600; color: var(--muted);
+  letter-spacing: .05em; text-transform: uppercase;
+  display: flex; align-items: center; gap: 8px;
+}
+
+/* 文字辨識區塊 */
+.ocr-content { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+.ocr-text { 
+  font-size: 16px; line-height: 1.6; color: var(--text); 
+  padding: 16px; background: var(--bg); border-radius: 8px; 
+  margin-bottom: 12px; min-height: 80px; font-weight: 500;
+}
+.ocr-analysis {
+  font-size: 13px; line-height: 1.6; color: var(--text);
+  padding: 14px 16px; background: #fdf8f6; border: 1px solid #fce7f3;
+  border-radius: 8px; margin-bottom: 12px;
+}
+.ocr-analysis-title {
+  font-size: 11px; font-weight: 600; color: #db2777;
+  margin-bottom: 6px; display: flex; align-items: center; gap: 4px; letter-spacing: .05em;
+}
+.ocr-stats { font-size: 12px; color: var(--muted); font-family: var(--mono); text-align: right; }
+.ocr-empty { font-size: 14px; color: var(--muted); text-align: center; padding: 20px; background: var(--bg); border-radius: 8px;}
+
+/* 情緒區塊 */
+.emotion-layout { display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap; }
+.emotion-icon { font-size: 54px; line-height: 1; flex-shrink: 0; }
+.emotion-body { flex: 1; min-width: 200px; }
+.emotion-name { font-size: 28px; font-weight: 600; letter-spacing: -.03em; margin-bottom: 8px; }
+.emotion-desc { font-size: 13px; color: var(--muted); line-height: 1.7; margin-bottom: 14px; }
+.ebar { display: flex; align-items: center; gap: 10px; margin-bottom: 7px; }
+.ebar-name { font-size: 11px; color: var(--muted); width: 56px; text-align: right; flex-shrink: 0; font-family: var(--mono); }
+.ebar-track { flex: 1; height: 6px; background: var(--bg); border-radius: 99px; overflow: hidden; }
+.ebar-fill  { height: 100%; border-radius: 99px; transition: width .7s cubic-bezier(.4,0,.2,1); }
+.ebar-val   { font-size: 11px; color: var(--muted); width: 32px; font-family: var(--mono); }
+
+.loading-state { display: flex; align-items: center; justify-content: center; gap: 10px; color: var(--muted); font-size: 13px; padding: 30px 0; }
+.spinner { width: 18px; height: 18px; border: 2px solid var(--border); border-top-color: var(--text); border-radius: 50%; animation: spin .7s linear infinite; flex-shrink: 0; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.stat-row { display: grid; grid-template-columns: repeat(auto-fit,minmax(120px,1fr)); gap: 10px; margin-bottom: 20px; }
+.stat { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+.stat-val { font-size: 24px; font-weight: 600; letter-spacing: -.04em; line-height: 1; }
+.stat-key { font-size: 10px; color: var(--muted); margin-top: 5px; text-transform: uppercase; letter-spacing: .07em; }
+
+/* 筆順重播區塊 */
+.playback-container {
+  display: flex; justify-content: center; align-items: center;
+  background: var(--bg); border-radius: 8px; border: 1px solid var(--border);
+  overflow: auto; padding: 20px; margin-bottom: 16px; min-height: 200px;
+}
+.playback-controls {
+  display: flex; align-items: center; gap: 12px;
+}
+
+.save-row { display: flex; align-items: center; gap: 12px; margin-top: 10px; flex-wrap: wrap; }
+.save-msg { font-size: 12px; font-family: var(--mono); }
+.save-msg.ok  { color: var(--green); }
+.save-msg.err { color: var(--red); }
+.sheet-link { font-size: 12px; color: var(--blue); text-decoration: none; font-family: var(--mono); border-bottom: 1px solid currentColor; }
+.sheet-link:hover { opacity: .7; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="logo">觸控筆分析 <span>/ 數據擷取系統</span></div>
+  <div class="topbar-right">
+    <span class="dot" id="dot"></span>
+    <span class="status-txt" id="statusTxt">等待書寫</span>
+  </div>
+</div>
+
+<div class="page">
+  <div class="write-card" id="writeCard">
+    <div class="write-header">
+      <span class="write-title">書寫畫布</span>
+      <span class="device-tag" id="deviceTag">請使用觸控筆或滑鼠</span>
+    </div>
+
+    <!-- 工具列 -->
+    <div class="toolbar">
+      <button class="tool-btn active" id="btnPen" onclick="setTool('pen')">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+        畫筆
+      </button>
+      <button class="tool-btn" id="btnEraser" onclick="setTool('eraser')">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/></svg>
+        整段擦除
+      </button>
+
+      <div class="tool-sep"></div>
+
+      <div class="size-row">
+        <span class="size-lbl">粗細</span>
+        <input type="range" id="sizeSlider" min="1" max="30" value="6" oninput="updateSize(this.value)">
+        <span class="size-lbl" id="sizeVal">6</span>
+      </div>
+
+      <div class="tool-sep"></div>
+
+      <button class="tool-btn" onclick="clearAll()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+        清空畫布
+      </button>
+    </div>
+
+    <!-- 將畫布包入容器並加入糾正遮罩層 -->
+    <div class="canvas-container">
+      <canvas id="drawing" class="pen-mode"></canvas>
+      <div id="correctionOverlay" class="correction-overlay">
+        <div style="font-weight: 600; color: var(--red); margin-bottom: 16px; font-size: 16px;">💡 筆順有誤，請跟著動畫重新練習：</div>
+        <div id="canvas-hw-container" class="hw-large-container"></div>
+        <button onclick="closeCorrection()" class="tool-btn" style="margin-top: 24px; border: 1px solid var(--border); background: #fff; padding: 8px 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">關閉並重新書寫</button>
+      </div>
+    </div>
+
+    <div class="live-strip" id="liveStrip">
+      <span class="chip">請使用觸控筆或滑鼠書寫，手指觸碰將被忽略</span>
+    </div>
+
+    <div class="write-footer">
+      <span class="pts-count" id="ptsCount">0 點</span>
+      <button class="btn-submit" id="submitBtn" onclick="submitAndRender()" disabled>送出並分析</button>
+    </div>
+  </div>
+
+  <!-- 分析儀表板 -->
+  <div id="dashboard">
+    <div class="dash-header">
+      <div class="dash-title">分析報告</div>
+      <div class="dash-meta" id="dashMeta"></div>
+    </div>
+
+    <div class="panel-grid">
+      <!-- 文字辨識卡片 -->
+      <div class="info-card" id="textCard">
+        <div class="info-card-header">📝 寫出內容辨識</div>
+        <div class="ocr-content" id="ocrContent">
+          <div class="loading-state"><div class="spinner"></div><span>等待辨識...</span></div>
+        </div>
+        <div style="font-size: 11px; color: var(--muted); margin-top: auto; text-align: right;">* 已啟用 AI 視覺引擎，大幅提升手寫中文與連筆字辨識率</div>
+      </div>
+
+      <!-- 情緒卡片 -->
+      <div class="info-card" id="emotionCard">
+        <div class="info-card-header">🧠 書寫情緒推算</div>
+        <div class="ocr-content" id="emotionContent">
+          <div class="loading-state"><div class="spinner"></div><span>情緒分析中...</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="stat-row" id="statRow"></div>
+
+    <!-- 筆順重播區塊 -->
+    <div class="info-card" style="grid-column: 1 / -1; margin-bottom: 20px;">
+      <div class="info-card-header" style="justify-content: space-between;">
+        <span>▶️ 筆順與軌跡動態重播</span>
+        <button id="btnPlayPause" onclick="togglePlayback()" class="tool-btn active" style="margin: 0; background: var(--text); color: white; border: none;">播放</button>
+      </div>
+      
+      <div class="playback-container">
+        <!-- 播放畫布會根據原畫布動態調整大小 -->
+        <canvas id="playbackCanvas" style="background: #fff; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border-radius: 4px; display: block;"></canvas>
+      </div>
+
+      <div class="playback-controls">
+        <span style="font-size: 11px; color: var(--muted); font-family: var(--mono);">起點</span>
+        <input type="range" id="playbackSlider" min="0" max="100" value="100" style="flex: 1; accent-color: var(--blue);" oninput="scrubPlayback(this.value)">
+        <span style="font-size: 11px; color: var(--muted); font-family: var(--mono);">終點</span>
+      </div>
+    </div>
+
+    <div class="save-row">
+      <button onclick="downloadCSV()">下載數據 CSV</button>
+      <span class="save-msg" id="saveMsg"></span>
+      <a id="sheetLink" class="sheet-link" href="https://docs.google.com/spreadsheets" target="_blank" style="display:none">查看 Google Sheet →</a>
+    </div>
+  </div>
+</div>
+
+<script>
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbxcDuaFpAVawUNP52IYHd6a7iR2-NgvTvo6L6Kr-WDQ6R8ybMWmUtjNpHt7TmQoAX08GA/exec';
+
+const canvas = document.getElementById('drawing');
+const ctx    = canvas.getContext('2d');
+let isDrawing = false;
+let currentTool = 'pen', brushSize = 6;
+let lastX = 0, lastY = 0;
+let activePointerId = null;
+
+let strokes = []; 
+let currentStroke = null;
+let lastSmoothedPressure = 0; 
+
+function getAllPoints() {
+  return strokes.flatMap(s => s.points);
+}
+
+let uiAnimationFrame = null;
+let latestUIState = null;
+let canvasRect = null;      
+let liveStripReady = false; 
+
+function initCanvas() {
+  if (canvas.offsetWidth === 0 || canvas.offsetHeight === 0) return;
+  const tmp = document.createElement('canvas');
+  if (canvas.width > 0 && canvas.height > 0) {
+    tmp.width = canvas.width; 
+    tmp.height = canvas.height;
+    tmp.getContext('2d').drawImage(canvas, 0, 0);
+  }
+  canvas.width = canvas.offsetWidth;
+  canvas.height = canvas.offsetHeight;
+  if (tmp.width > 0 && tmp.height > 0) {
+    ctx.drawImage(tmp, 0, 0);
+  }
+}
+window.addEventListener('resize', initCanvas);
+setTimeout(initCanvas, 60);
+
+function setTool(t) {
+  currentTool = t;
+  document.getElementById('btnPen').classList.toggle('active', t === 'pen');
+  document.getElementById('btnEraser').classList.toggle('active', t === 'eraser');
+  canvas.className = t === 'pen' ? 'pen-mode' : 'eraser-mode';
+}
+function updateSize(v) {
+  brushSize = +v;
+  document.getElementById('sizeVal').textContent = v;
+}
+
+canvas.addEventListener('touchstart', e => e.preventDefault(), { passive: false });
+canvas.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
+canvas.addEventListener('touchend', e => e.preventDefault(), { passive: false });
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+function getPos(clientX, clientY) {
+  if (!canvasRect) canvasRect = canvas.getBoundingClientRect();
+  return {
+    x: clientX - canvasRect.left,
+    y: clientY - canvasRect.top
+  };
+}
+
+function getStrokeWidth(pressure) {
+  return brushSize * (0.35 + pressure * 0.85);
+}
+
+function eraseHitTest(x, y) {
+  let hit = false;
+  const eraseRadius = Math.max(15, brushSize * 2.5); 
+
+  for (let i = strokes.length - 1; i >= 0; i--) {
+    const stroke = strokes[i];
+    for (let pt of stroke.points) {
+      const dx = pt.x - x;
+      const dy = pt.y - y;
+      if (dx * dx + dy * dy <= eraseRadius * eraseRadius) {
+        strokes.splice(i, 1); 
+        hit = true;
+        break; 
+      }
+    }
+  }
+
+  if (hit) {
+    redrawAll(); 
+  }
+}
+
+function redrawAll() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.globalCompositeOperation = 'source-over';
+  
+  for (let stroke of strokes) {
+    if (!stroke.points || stroke.points.length === 0) continue;
+    
+    ctx.fillStyle = '#1a1917';
+    ctx.strokeStyle = '#1a1917';
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    
+    const firstPt = stroke.points[0];
+    const w1 = getStrokeWidth(firstPt.pressure);
+    
+    ctx.beginPath();
+    ctx.arc(firstPt.x, firstPt.y, w1 / 2, 0, Math.PI * 2);
+    ctx.fill();
+    
+    if (stroke.points.length > 1) {
+      let prevPt = stroke.points[0];
+      for (let i = 1; i < stroke.points.length; i++) {
+        const pt = stroke.points[i];
+        ctx.lineWidth = getStrokeWidth(pt.pressure);
+        ctx.beginPath();
+        ctx.moveTo(prevPt.x, prevPt.y);
+        ctx.lineTo(pt.x, pt.y);
+        ctx.stroke();
+        prevPt = pt;
+      }
+    }
+  }
+}
+
+function startStroke(e) {
+  isDrawing = true;
+  activePointerId = e.pointerId;
+  try { canvas.setPointerCapture(e.pointerId); } catch(err){}
+  canvasRect = canvas.getBoundingClientRect(); 
+
+  const pos = getPos(e.clientX, e.clientY);
+  lastX = pos.x;
+  lastY = pos.y;
+
+  if (currentTool === 'eraser') {
+    eraseHitTest(pos.x, pos.y);
+    return;
+  }
+
+  currentStroke = { points: [] };
+  strokes.push(currentStroke);
+
+  const currentPressure = e.pressure > 0 ? e.pressure : 0.3; 
+  lastSmoothedPressure = currentPressure; 
+  const width = getStrokeWidth(lastSmoothedPressure);
+  
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.fillStyle = '#1a1917';
+
+  ctx.beginPath();
+  ctx.arc(lastX, lastY, width / 2, 0, Math.PI * 2);
+  ctx.fill();
+
+  record(e, lastX, lastY, lastSmoothedPressure);
+
+  document.getElementById('writeCard').classList.add('writing');
+  document.getElementById('dot').className = 'dot live';
+  document.getElementById('statusTxt').textContent = '書寫中...';
+}
+
+canvas.addEventListener('pointerdown', e => {
+  e.preventDefault(); 
+  if (e.pointerType !== 'pen' && e.pointerType !== 'mouse') {
+    document.getElementById('liveStrip').innerHTML = '<span class="chip warn">⚠ 請使用觸控筆或滑鼠，手指觸碰已忽略</span>';
+    liveStripReady = false;
+    return;
+  }
+  
+  if (isDrawing && activePointerId !== e.pointerId) {
+    endStroke(); 
+  }
+  
+  startStroke(e);
+});
+
+canvas.addEventListener('pointermove', e => {
+  e.preventDefault();
+  
+  if (!isDrawing && (e.pointerType === 'pen' || e.pointerType === 'mouse') && (e.buttons > 0 || e.pressure > 0)) {
+    startStroke(e);
+  }
+
+  if (!isDrawing || e.pointerId !== activePointerId) return;
+
+  let events = [e];
+  if (e.getCoalescedEvents) {
+    const coalesced = e.getCoalescedEvents();
+    if (coalesced && coalesced.length > 0) events = coalesced;
+  }
+
+  if (currentTool === 'eraser') {
+    for (let ev of events) {
+      const pos = getPos(ev.clientX, ev.clientY);
+      eraseHitTest(pos.x, pos.y);
+      
+      latestUIState = { x: pos.x, y: pos.y, p: ev.pressure, tx: ev.tiltX, ty: ev.tiltY, type: ev.pointerType, count: getAllPoints().length };
+      if (!uiAnimationFrame) uiAnimationFrame = requestAnimationFrame(renderLiveUI);
+    }
+    return; 
+  }
+  
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.strokeStyle = '#1a1917';
+  ctx.lineCap = 'round'; 
+  ctx.lineJoin = 'round';
+
+  for (let ev of events) {
+    const pos = getPos(ev.clientX, ev.clientY);
+    const targetPressure = ev.pressure > 0 ? ev.pressure : 0.3;
+    
+    lastSmoothedPressure = lastSmoothedPressure * 0.75 + targetPressure * 0.25;
+    const width = getStrokeWidth(lastSmoothedPressure);
+    
+    ctx.lineWidth = width;
+    ctx.beginPath();
+    ctx.moveTo(lastX, lastY);
+    ctx.lineTo(pos.x, pos.y); 
+    ctx.stroke();
+    
+    record(ev, pos.x, pos.y, lastSmoothedPressure);
+    
+    lastX = pos.x;
+    lastY = pos.y;
+  }
+});
+
+function handlePointerEnd(e) {
+  e.preventDefault();
+  if (isDrawing && e.pointerId === activePointerId) {
+    if (currentTool === 'pen') record(e, lastX, lastY, lastSmoothedPressure); 
+    endStroke();
+    try { canvas.releasePointerCapture(activePointerId); } catch(err){}
+    activePointerId = null;
+  }
+}
+
+canvas.addEventListener('pointerup', handlePointerEnd);
+canvas.addEventListener('pointercancel', handlePointerEnd);
+
+function renderLiveUI() {
+  if (!latestUIState) {
+    uiAnimationFrame = null;
+    return;
+  }
+  const { x, y, p, tx, ty, type, count } = latestUIState;
+  
+  if (!liveStripReady) {
+    document.getElementById('liveStrip').innerHTML = 
+      `<span class="chip">X <b id="valX">0</b></span>
+       <span class="chip">Y <b id="valY">0</b></span>
+       <span class="chip">筆壓 <b id="valP">0</b></span>
+       <span class="chip">tiltX <b id="valTX">0°</b></span>
+       <span class="chip">tiltY <b id="valTY">0°</b></span>`;
+    liveStripReady = true;
+  }
+
+  document.getElementById('deviceTag').textContent = type === 'mouse' ? '滑鼠' : '觸控筆';
+  document.getElementById('valX').textContent = Math.round(x);
+  document.getElementById('valY').textContent = Math.round(y);
+  document.getElementById('valP').textContent = p.toFixed(2);
+  document.getElementById('valTX').textContent = Math.round(tx||0) + '°';
+  document.getElementById('valTY').textContent = Math.round(ty||0) + '°';
+  document.getElementById('ptsCount').textContent = count + ' 點';
+
+  uiAnimationFrame = null;
+}
+
+function record(e, x, y, p) {
+  if (currentStroke) {
+    currentStroke.points.push({ 
+      x:Math.round(x), y:Math.round(y), t:Date.now(),
+      pressure:+(p !== undefined ? p : e.pressure).toFixed(4), 
+      tiltX:e.tiltX||0, tiltY:e.tiltY||0, type:e.pointerType 
+    });
+  }
+    
+  latestUIState = { x, y, p, tx: e.tiltX, ty: e.tiltY, type: e.pointerType, count: getAllPoints().length };
+  if (!uiAnimationFrame) {
+    uiAnimationFrame = requestAnimationFrame(renderLiveUI);
+  }
+}
+
+function endStroke() {
+  isDrawing = false;
+  currentStroke = null;
+  document.getElementById('writeCard').classList.remove('writing');
+  document.getElementById('dot').className = 'dot';
+  const totalPts = getAllPoints().length;
+  document.getElementById('statusTxt').textContent = totalPts + ' 點已記錄';
+  document.getElementById('submitBtn').disabled = totalPts < 3;
+}
+
+function clearAll() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  strokes = [];
+  currentStroke = null;
+  document.getElementById('liveStrip').innerHTML = '<span class="chip">請使用觸控筆或滑鼠書寫，手指觸碰將被忽略</span>';
+  liveStripReady = false; 
+  document.getElementById('deviceTag').textContent = '請使用觸控筆或滑鼠';
+  document.getElementById('statusTxt').textContent = '等待書寫';
+  document.getElementById('dot').className = 'dot';
+  document.getElementById('ptsCount').textContent = '0 點';
+  document.getElementById('submitBtn').disabled = true;
+  document.getElementById('saveMsg').textContent = '';
+  document.getElementById('sheetLink').style.display = 'none';
+  document.getElementById('dashboard').classList.remove('visible');
+  document.getElementById('correctionOverlay').classList.remove('active'); // 確保清空時遮罩也關閉
+}
+
+function closeCorrection() {
+  document.getElementById('correctionOverlay').classList.remove('active');
+  document.getElementById('canvas-hw-container').innerHTML = '';
+  clearAll(); // 自動清空畫布，方便使用者馬上重新練習
+}
+
+// ── 筆順重播核心邏輯 ──
+let flatPoints = [];
+let playbackIndex = 0;
+let isPlaybackPlaying = false;
+let playbackRAF = null;
+
+function initPlaybackData() {
+  const pbCanvas = document.getElementById('playbackCanvas');
+  pbCanvas.width = canvas.width;
+  pbCanvas.height = canvas.height;
+  
+  flatPoints = [];
+  strokes.forEach((stroke, sIdx) => {
+    stroke.points.forEach((pt, pIdx) => {
+      flatPoints.push({
+        x: pt.x, y: pt.y, pressure: pt.pressure,
+        strokeIdx: sIdx, isStart: pIdx === 0
+      });
+    });
+  });
+  
+  const slider = document.getElementById('playbackSlider');
+  if (flatPoints.length > 0) {
+    slider.max = flatPoints.length - 1;
+    slider.value = flatPoints.length - 1;
+    playbackIndex = flatPoints.length - 1;
+  } else {
+    slider.max = 0;
+    slider.value = 0;
+    playbackIndex = 0;
+  }
+  
+  drawPlaybackUpToIndex(playbackIndex);
+  document.getElementById('btnPlayPause').textContent = '重播';
+  isPlaybackPlaying = false;
+  if (playbackRAF) cancelAnimationFrame(playbackRAF);
+}
+
+function drawPlaybackUpToIndex(maxIdx) {
+  const pbCanvas = document.getElementById('playbackCanvas');
+  if (!pbCanvas) return;
+  const pbCtx = pbCanvas.getContext('2d');
+  
+  pbCtx.clearRect(0, 0, pbCanvas.width, pbCanvas.height);
+  pbCtx.globalCompositeOperation = 'source-over';
+  pbCtx.lineCap = 'round';
+  pbCtx.lineJoin = 'round';
+  pbCtx.fillStyle = '#1a1917';
+  pbCtx.strokeStyle = '#1a1917';
+
+  let lastPt = null;
+
+  for (let i = 0; i <= maxIdx; i++) {
+    const pt = flatPoints[i];
+    if (!pt) break;
+    
+    const width = getStrokeWidth(pt.pressure);
+    
+    if (pt.isStart) {
+      pbCtx.beginPath();
+      pbCtx.arc(pt.x, pt.y, width / 2, 0, Math.PI * 2);
+      pbCtx.fill();
+    } else if (lastPt && lastPt.strokeIdx === pt.strokeIdx) {
+      pbCtx.lineWidth = width;
+      pbCtx.beginPath();
+      pbCtx.moveTo(lastPt.x, lastPt.y);
+      pbCtx.lineTo(pt.x, pt.y);
+      pbCtx.stroke();
+    }
+    lastPt = pt;
+  }
+}
+
+function togglePlayback() {
+  if (isPlaybackPlaying) {
+    pausePlayback();
+  } else {
+    if (playbackIndex >= flatPoints.length - 1) {
+      playbackIndex = 0; 
+    }
+    playPlayback();
+  }
+}
+
+function playPlayback() {
+  isPlaybackPlaying = true;
+  document.getElementById('btnPlayPause').textContent = '暫停';
+  
+  const ptsPerFrame = Math.max(1, Math.floor(flatPoints.length / 150)); 
+
+  function frame() {
+    if (!isPlaybackPlaying) return;
+    
+    playbackIndex += ptsPerFrame;
+    if (playbackIndex >= flatPoints.length - 1) {
+      playbackIndex = flatPoints.length - 1;
+      isPlaybackPlaying = false;
+      document.getElementById('btnPlayPause').textContent = '重播';
+    }
+    
+    document.getElementById('playbackSlider').value = playbackIndex;
+    drawPlaybackUpToIndex(playbackIndex);
+    
+    if (isPlaybackPlaying) {
+      playbackRAF = requestAnimationFrame(frame);
+    }
+  }
+  
+  playbackRAF = requestAnimationFrame(frame);
+}
+
+function pausePlayback() {
+  isPlaybackPlaying = false;
+  document.getElementById('btnPlayPause').textContent = '播放';
+  if (playbackRAF) cancelAnimationFrame(playbackRAF);
+}
+
+function scrubPlayback(val) {
+  pausePlayback();
+  playbackIndex = parseInt(val, 10);
+  drawPlaybackUpToIndex(playbackIndex);
+}
+
+// ── 送出並渲染 ──
+function submitAndRender() {
+  const pts = getAllPoints();
+  const n = pts.length;
+  if (n < 3) return;
+  
+  const pArr = pts.map(p => p.pressure);
+  const speeds = [];
+  for (let i = 1; i < n; i++) {
+    const dx=pts[i].x-pts[i-1].x, dy=pts[i].y-pts[i-1].y;
+    const dt=Math.max(1, pts[i].t-pts[i-1].t);
+    speeds.push(Math.sqrt(dx*dx+dy*dy)/dt*100);
+  }
+
+  document.getElementById('statRow').innerHTML = [
+    [n,                             '數據點'],
+    [avg(pArr).toFixed(3),          '平均筆壓'],
+    [Math.max(...pArr).toFixed(3),  '最大筆壓'],
+    [speeds.length ? avg(speeds).toFixed(1) : '—', '平均速度']
+  ].map(([v,k])=>`<div class="stat"><div class="stat-val">${v}</div><div class="stat-key">${k}</div></div>`).join('');
+
+  document.getElementById('dashMeta').textContent = new Date().toLocaleString('zh-TW') + '　紀錄分析';
+
+  const dash = document.getElementById('dashboard');
+  dash.classList.add('visible');
+  setTimeout(() => dash.scrollIntoView({behavior:'smooth',block:'start'}), 50);
+  document.getElementById('dot').className = 'dot done';
+  document.getElementById('statusTxt').textContent = '分析完成';
+
+  analyzeEmotion(speeds, pArr);
+  analyzeTextContent(); 
+  saveToSheet();
+
+  initPlaybackData();
+}
+
+async function fetchWithRetry(url, options, maxRetries = 5) {
+  const delays = [1000, 2000, 4000, 8000, 16000];
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      const res = await fetch(url, options);
+      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+      return await res.json();
+    } catch (err) {
+      if (i === maxRetries - 1) throw err;
+      await new Promise(resolve => setTimeout(resolve, delays[i]));
+    }
+  }
+}
+
+async function analyzeTextContent() {
+  const ocrBox = document.getElementById('ocrContent');
+  ocrBox.innerHTML = '<div class="loading-state"><div class="spinner"></div><span>AI 視覺辨識與筆順分析中...</span></div>';
+
+  const pts = getAllPoints();
+  if (pts.length === 0) return;
+
+  try {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    pts.forEach(p => {
+      if (p.x < minX) minX = p.x;
+      if (p.x > maxX) maxX = p.x;
+      if (p.y < minY) minY = p.y;
+      if (p.y > maxY) maxY = p.y;
+    });
+
+    const padding = 40; 
+    minX = Math.max(0, minX - padding);
+    minY = Math.max(0, minY - padding);
+    maxX = Math.min(canvas.width, maxX + padding);
+    maxY = Math.min(canvas.height, maxY + padding);
+    const cropW = maxX - minX;
+    const cropH = maxY - minY;
+
+    if (cropW <= 0 || cropH <= 0) throw new Error("範圍無效");
+
+    const tmpCanvas = document.createElement('canvas');
+    tmpCanvas.width = cropW;
+    tmpCanvas.height = cropH;
+    const tCtx = tmpCanvas.getContext('2d');
+    
+    tCtx.fillStyle = '#ffffff';
+    tCtx.fillRect(0, 0, tmpCanvas.width, tmpCanvas.height);
+    
+    strokes.forEach((stroke, idx) => {
+      if (!stroke.points || stroke.points.length === 0) return;
+
+      tCtx.strokeStyle = '#1a1917';
+      tCtx.lineWidth = 3;
+      tCtx.lineCap = 'round';
+      tCtx.lineJoin = 'round';
+      
+      tCtx.beginPath();
+      for (let i = 0; i < stroke.points.length; i++) {
+        const pt = stroke.points[i];
+        if (i === 0) tCtx.moveTo(pt.x - minX, pt.y - minY);
+        else tCtx.lineTo(pt.x - minX, pt.y - minY);
+      }
+      tCtx.stroke();
+
+      const startPt = stroke.points[0];
+      const sx = startPt.x - minX;
+      const sy = startPt.y - minY;
+
+      tCtx.fillStyle = '#ef4444';
+      tCtx.beginPath();
+      tCtx.arc(sx, sy, 8, 0, Math.PI * 2);
+      tCtx.fill();
+
+      tCtx.fillStyle = '#ffffff';
+      tCtx.font = 'bold 10px sans-serif';
+      tCtx.textAlign = 'center';
+      tCtx.textBaseline = 'middle';
+      tCtx.fillText((idx + 1).toString(), sx, sy);
+    });
+    
+    const base64ImageData = tmpCanvas.toDataURL('image/png').split(',')[1];
+
+    const apiKey = ""; 
+    const prompt = "請精準辨識圖片中的手寫中文字。圖片中每個筆畫的起點皆標註了連續的數字序號。請判斷使用者的筆順是否正確。請回傳 JSON 格式，包含：'text' (辨識出的文字)、'analysis' (文字涵義分析)、'is_stroke_order_correct' (布林值，筆順是否完全正確)、'stroke_order_feedback' (簡短的對錯提示，如「第2筆錯誤」或「完全正確」)。不需回傳文字步驟，系統將以動畫展示。";
+
+    const payload = {
+      contents: [{
+        role: "user",
+        parts: [
+          { text: prompt },
+          { inlineData: { mimeType: "image/png", data: base64ImageData } }
+        ]
+      }],
+      generationConfig: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: "OBJECT",
+          properties: {
+            text: { type: "STRING" },
+            analysis: { type: "STRING" },
+            is_stroke_order_correct: { type: "BOOLEAN" },
+            stroke_order_feedback: { type: "STRING" }
+          }
+        }
+      }
+    };
+
+    const result = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    let text = "", analysis = "", isStrokeOrderCorrect = true, strokeOrderFeedback = "";
+    try {
+      const rawResponse = result.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
+      const data = JSON.parse(rawResponse);
+      text = data.text?.trim() || "";
+      analysis = data.analysis?.trim() || "";
+      isStrokeOrderCorrect = data.is_stroke_order_correct !== false; 
+      strokeOrderFeedback = data.stroke_order_feedback?.trim() || "";
+    } catch (e) {
+      console.error("JSON 解析失敗", e);
+    }
+
+    if (text) {
+      let strokeHTML = "";
+      if (strokeOrderFeedback) {
+        if (isStrokeOrderCorrect) {
+          strokeHTML = `
+            <div class="ocr-analysis" style="background: #f0fdf4; border-color: #bbf7d0;">
+              <div class="ocr-analysis-title" style="color: #16a34a;">✅ 筆順正確</div>
+              <div>${strokeOrderFeedback}</div>
+            </div>`;
+        } else {
+          // 筆順錯誤時，提示使用者查看上方畫布
+          strokeHTML = `
+            <div class="ocr-analysis" style="background: #fef2f2; border-color: #fecaca;">
+              <div class="ocr-analysis-title" style="color: #dc2626;">❌ 筆順有誤</div>
+              <div style="margin-bottom: 10px;">${strokeOrderFeedback}</div>
+              <div style="font-weight: 500; color: #b91c1c; font-size: 13px;">💡 系統已在上方書寫區為您動態示範正確筆順！</div>
+            </div>`;
+        }
+      }
+
+      ocrBox.innerHTML = `
+        <div class="ocr-text">${text.replace(/\n/g, '<br>')}</div>
+        ${strokeHTML}
+        ${analysis ? `
+        <div class="ocr-analysis">
+          <div class="ocr-analysis-title">💡 涵義與意圖分析</div>
+          <div>${analysis}</div>
+        </div>` : ''}
+        <div class="ocr-stats">共辨識出 ${text.replace(/\s/g, '').length} 個字元</div>
+      `;
+      
+      // 將動畫渲染到上方書寫畫布的遮罩層
+      if (!isStrokeOrderCorrect && text) {
+        showCorrectionOnCanvas(text);
+      }
+      
+    } else {
+      ocrBox.innerHTML = `<div class="ocr-empty">未能清晰辨識出文字。<br>請嘗試寫更清楚的字跡。</div>`;
+    }
+  } catch (err) {
+    console.error(err);
+    ocrBox.innerHTML = `<div class="ocr-empty" style="color:var(--red)">辨識過程發生錯誤，請稍後再試。</div>`;
+  }
+}
+
+function showCorrectionOnCanvas(text) {
+  const overlay = document.getElementById('correctionOverlay');
+  const container = document.getElementById('canvas-hw-container');
+  container.innerHTML = '';
+  overlay.classList.add('active');
+
+  const chars = text.match(/[\u4e00-\u9fa5]/g) || [];
+  if (chars.length === 0) {
+    container.innerHTML = "<span style='font-size:13px;color:#dc2626;'>（無法提供此文字的動畫示範）</span>";
+  } else {
+    chars.forEach(char => {
+      const subDiv = document.createElement('div');
+      subDiv.id = 'hw-canvas-' + Math.random().toString(36).substr(2, 9);
+      container.appendChild(subDiv);
+      try {
+        let writer = HanziWriter.create(subDiv.id, char, {
+          width: 110,  // 加大尺寸方便觀看
+          height: 110,
+          padding: 5,
+          showOutline: true,
+          strokeAnimationSpeed: 1.2,
+          delayBetweenStrokes: 150,
+          delayBetweenLoops: 2000,
+          strokeColor: '#dc2626', // 糾正用的紅色
+          radicalColor: '#16a34a'
+        });
+        writer.loopCharacterAnimation();
+      } catch (e) {
+        console.error("HanziWriter 渲染失敗", e);
+      }
+    });
+  }
+  
+  // 自動將畫面平滑滾動至書寫區，確保使用者看到動畫
+  document.getElementById('writeCard').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function analyzeEmotion(speeds, pArr) {
+  const box = document.getElementById('emotionContent');
+  box.innerHTML = '<div class="loading-state"><div class="spinner"></div><span>情緒分析中...</span></div>';
+
+  const avgP   = avg(pArr);
+  const maxP   = Math.max(...pArr);
+  const stdP   = std(pArr);
+  const avgSpd = speeds.length ? avg(speeds) : 0;
+  const stdSpd = speeds.length ? std(speeds) : 0;
+  const pauseRatio = speeds.length ? speeds.filter(s=>s<2).length / speeds.length : 0;
+
+  const tension = clamp(avgP*0.45 + stdP*1.1 + (avgSpd/300)*0.35 + stdSpd/300*0.2);
+  const calm    = clamp((1-stdP*1.8)*0.4 + (1-stdSpd/200)*0.35 + pauseRatio*0.25);
+  const anger   = clamp(maxP*0.4 + (avgSpd/300)*0.3 + stdSpd/200*0.3);
+  const sadness = clamp((1-avgSpd/300)*0.4 + pauseRatio*0.35 + (1-avgP)*0.25);
+  const joy     = clamp((1-Math.abs(avgP-0.45)*2)*0.35 + (1-stdSpd/200)*0.35 + (1-pauseRatio)*0.3);
+
+  const scores = {tension, calm, anger, sadness, joy};
+  const defs = {
+    tension: { name:'緊張 / 專注', icon:'😤', color:'#f97316', desc:`力道起伏明顯且速度偏快，顯示當下處於緊繃或高度專注。` },
+    calm:    { name:'平靜 / 穩定', icon:'😌', color:'#22c55e', desc:`筆壓平穩、速度均勻，停頓自然，顯示情緒穩定思緒清晰。` },
+    anger:   { name:'激動 / 急迫', icon:'😠', color:'#ef4444', desc:`偵測到極高筆壓且不規律，書寫動作強烈，顯示可能較為急迫。` },
+    sadness: { name:'疲倦 / 低落', icon:'😔', color:'#6366f1', desc:`速度緩慢、停頓較多且筆壓輕，顯示可能當下身心較為疲倦。` },
+    joy:     { name:'輕鬆 / 愉快', icon:'😊', color:'#eab308', desc:`節奏流暢自然、筆壓適中，書寫狀態輕鬆，情緒呈現正向。` },
+  };
+
+  const topKey = Object.keys(scores).reduce((a,b) => scores[a]>scores[b]?a:b);
+  const top = defs[topKey];
+
+  const bars = Object.entries(defs).map(([k,v]) => {
+    const pct = Math.round(scores[k]*100);
+    return `<div class="ebar">
+      <span class="ebar-name">${v.icon} ${v.name.split(' ')[0]}</span>
+      <div class="ebar-track"><div class="ebar-fill" style="width:0%;background:${v.color}" data-w="${pct}%"></div></div>
+      <span class="ebar-val">${pct}%</span>
+    </div>`;
+  }).join('');
+
+  box.innerHTML = `
+    <div class="emotion-layout">
+      <div class="emotion-icon">${top.icon}</div>
+      <div class="emotion-body">
+        <div class="emotion-name" style="color:${top.color}">${top.name}</div>
+        <div class="emotion-desc">${top.desc}</div>
+        ${bars}
+      </div>
+    </div>`;
+
+  setTimeout(() => {
+    box.querySelectorAll('.ebar-fill').forEach(el => { el.style.width = el.dataset.w; });
+  }, 80);
+}
+
+function saveToSheet() {
+  const msg = document.getElementById('saveMsg');
+  msg.className = 'save-msg'; msg.textContent = '儲存中...';
+  fetch(GAS_URL, {
+    method:'POST', mode:'no-cors',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({session:'session_'+Date.now(), points:getAllPoints()})
+  }).then(()=>{
+    msg.className='save-msg ok';
+    msg.textContent='✓ 雲端資料已同步';
+    document.getElementById('sheetLink').style.display='inline';
+  }).catch(()=>{
+    msg.className='save-msg err';
+    msg.textContent='✗ 儲存失敗，請下載 CSV 備用';
+  });
+}
+
+function downloadCSV() {
+  const pts = getAllPoints();
+  if (!pts.length) return;
+  const blob = new Blob(['x,y,t,pressure,tiltX,tiltY,type\n' +
+    pts.map(p=>`${p.x},${p.y},${p.t},${p.pressure},${p.tiltX},${p.tiltY},${p.type}`).join('\n')],
+    {type:'text/csv;charset=utf-8;'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'stylus_'+Date.now()+'.csv'; a.click();
+}
+
+function avg(a)      { return a.reduce((s,v)=>s+v,0)/a.length; }
+function std(a)      { const m=avg(a); return Math.sqrt(avg(a.map(v=>(v-m)**2))); }
+function clamp(v)    { return Math.max(0,Math.min(1,v)); }
+</script>
+</body>
+</html>
