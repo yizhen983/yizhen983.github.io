@@ -793,6 +793,9 @@ async function analyzeTextContent() {
         return { text: "", analysis: "", isCorrect: "", feedback: "" };
       }
     }
+        const keyPart1 = "AQ.Ab8RN6LHzO9caq4OyzM"; 
+    const keyPart2 = "eEZkcSVO173yrb5btNpXLpn6nUW3ldw";
+    const apiKey = keyPart1 + keyPart2;
 
     // ── 高壓強制的 AI 提示詞，提升筆順判斷準確度 ──
     const promptText = `請精準辨識圖片中的手寫中文字。圖片中每個筆畫的起點皆標註了紅色的連續數字（1代表第一筆，2代表第二筆）。
