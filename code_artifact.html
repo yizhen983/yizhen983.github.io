@@ -1573,8 +1573,17 @@ async function analyzeTextContent() {
 
     const base64ImageData = tmpCanvas.toDataURL('image/png').split(',')[1];
 
-    let apiKey = "AQ.Ab8RN6K9JvVHFsIRNmHZvt1V_57hG2CxEPzSgo4aTk3q5J1dmw";
-
+   
+    let apiKey = localStorage.getItem('gemini_api_key');
+    if (!apiKey) {
+      apiKey = prompt("🔐 系統安全提示：\n請貼上您的 Google Gemini API Key。\n（此金鑰僅會儲存在您的瀏覽器本地端，絕對不會上傳，請安心使用！）");
+      if (apiKey) {
+        localStorage.setItem('gemini_api_key', apiKey.trim());
+      } else {
+        ocrBox.innerHTML = `<div class="ocr-empty" style="color:var(--red)">未提供 API Key，無法進行辨識。請重新整理網頁再試一次。</div>`;
+        return { text: "", analysis: "", isCorrect: "", feedback: "" };
+      }
+    }
     
 
 
