@@ -1896,53 +1896,44 @@ function analyzeEmotion(speeds, pArr) {
 
 }
 
-
-
 function saveToSheet(n, avgP, maxP, avgS, emoData, ocrData) {
-
   const msg = document.getElementById('saveMsg');
-
   msg.className = 'save-msg'; msg.textContent = '儲存中...';
-
   
-
   const payload = {
-
     session: 'session_' + Date.now(),
-
     pointsCount: n, avgPressure: avgP, maxPressure: maxP, avgSpeed: avgS,
-
     ocrText: ocrData.text, ocrAnalysis: ocrData.analysis, strokeCorrect: ocrData.isCorrect, strokeFeedback: ocrData.feedback,
-
     primaryEmotion: emoData.primary, tension: emoData.tension, calm: emoData.calm, anger: emoData.anger, sadness: emoData.sadness, joy: emoData.joy,
-
     points: getAllPoints()
-
   };
 
-
-
   fetch(GAS_URL, {
-
-    method:'POST', mode:'no-cors',
-
-    headers:{'Content-Type':'application/json'},
-
+    method: 'POST', 
+    // 💡 移除 mode: 'no-cors'，並將 Content-Type 改為 text/plain 繞過預檢
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify(payload)
-
-  }).then(()=>{
-
-    msg.className='save-msg ok'; msg.textContent='✓ 雲端資料已同步';
-
-    document.getElementById('sheetLink').style.display='inline';
-
-  }).catch(()=>{
-
-    msg.className='save-msg err'; msg.textContent='✗ 儲存失敗，請下載 CSV 備用';
-
+  })
+  .then(response => response.json()) // 解析 GAS 回傳的 JSON 格式
+  .then(data => {
+    if (data.success) {
+      msg.className = 'save-msg ok'; 
+      msg.textContent = '✓ 雲端資料已同步';
+      document.getElementById('sheetLink').style.display = 'inline';
+    } else {
+      msg.className = 'save-msg err'; 
+      msg.textContent = '✗ 儲存失敗：' + data.error;
+      console.error("GAS 錯誤:", data.error);
+    }
+  })
+  .catch(err => {
+    console.error("Fetch 錯誤:", err);
+    msg.className = 'save-msg err'; 
+    msg.textContent = '✗ 儲存失敗，請下載 CSV 備用';
   });
-
 }
+
+
 
 
 
