@@ -779,11 +779,16 @@ async function analyzeTextContent() {
     
     const base64ImageData = tmpCanvas.toDataURL('image/png').split(',')[1];
 
-    // 💡 1. 恢復您要求的彈性 prompt 機制
-    // 放入反轉後的金鑰字串，並在程式運作時自動翻轉還原
-    let reversedKey = "wKJhZanl6f1rmtG_drE3taCZzXtriqeF5EzPiui4wKwJ6NR8bA.QA";
-    let apiKey = reversedKey.split('').reverse().join('');
-    
+let apiKey = localStorage.getItem('gemini_api_key');
+    if (!apiKey) {
+      apiKey = prompt("🔐 系統安全提示：\n請貼上您的 Google Gemini API Key。\n（此金鑰僅會儲存在您的瀏覽器本地端，絕對不會上傳，請安心使用！）");
+      if (apiKey) {
+        localStorage.setItem('gemini_api_key', apiKey.trim());
+      } else {
+        ocrBox.innerHTML = `<div class="ocr-empty" style="color:var(--red)">未提供 API Key，無法進行辨識。請重新整理網頁再試一次。</div>`;
+        return { text: "", analysis: "", isCorrect: "", feedback: "" };
+      }
+    }
 
     const promptText = `請精準辨識圖片中的手寫中文字。圖片中每個筆畫的起點皆標註了紅色的連續數字（1代表第一筆，2代表第二筆）。
 請執行以下任務並務必以 JSON 格式回傳，絕不能遺漏任何欄位：
