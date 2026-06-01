@@ -1575,7 +1575,17 @@ async function analyzeTextContent() {
 
    
   // 直接指定 API Key
-    let apiKey = "AQ.Ab8RN6JhwmBpShkn_jXbHyMi38PbKdN_nDjIMAqQ_Cb00tWwug";
+   // 使用 prompt 詢問並儲存至 localStorage
+    let apiKey = localStorage.getItem('gemini_api_key');
+    if (!apiKey) {
+      apiKey = prompt("🔐 系統安全提示：\n請貼上您的 Google Gemini API Key。\n（此金鑰僅會儲存在您的瀏覽器本地端，絕對不會上傳，請安心使用！）");
+      if (apiKey) {
+        localStorage.setItem('gemini_api_key', apiKey.trim());
+      } else {
+        ocrBox.innerHTML = `<div class="ocr-empty" style="color:var(--red)">未提供 API Key，無法進行辨識。請重新整理網頁再試一次。</div>`;
+        return { text: "", analysis: "", isCorrect: "", feedback: "" };
+      }
+    }
     
 
 
@@ -1696,14 +1706,17 @@ async function analyzeTextContent() {
 
     }
 
-  } catch (err) {
+ } catch (err) {
     console.error(err);
+    // 遇到金鑰錯誤時，立刻把壞掉的金鑰從記憶體刪除
+    localStorage.removeItem('gemini_api_key');
+
     ocrBox.innerHTML = `
       <div class="ocr-empty" style="color:var(--red); line-height: 1.6;">
-        ⚠️ <b>AI 辨識發生錯誤或被拒絕！</b><br><br>
-        這通常是因為 API 金鑰無效或格式錯誤。<br>
-        <span style="font-size:12px; color:#888;">(提示：標準的 Google Gemini 金鑰通常以 AIzaSy 開頭)</span><br>
-        請確認您的金鑰來源，或至 Google AI Studio 重新申請。
+        ⚠️ <b>辨識被拒絕：金鑰已失效！</b><br><br>
+        系統發現目前儲存的金鑰無法使用，已經為您清除了記憶。<br>
+        👉 <b>請去申請一把「全新」的金鑰 (通常以 AIzaSy 開頭)。</b><br>
+        👉 <b>然後請「重新整理網頁」(按 F5)</b>，系統會再次跳出視窗讓您貼入新金鑰！
       </div>`;
     return { text: "", analysis: "", isCorrect: "", feedback: "" };
   }
