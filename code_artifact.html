@@ -660,7 +660,8 @@ button:disabled { opacity: .35; cursor: not-allowed; }
 
 <script>
 
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbwhtUWZ7be0gj92lMRaI4F9cCyn3vlg8x4-nJ8Z0nBeNq-JBTcJApHN6FKxGJCiz-qY/exec';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbyTGtzsdJdz-81A2VhA4z3jwcpkxiAho6mHy2j9HhHqp-zMRv7j_jRXJVuIvGZJ78z0/exec';
+
 
 
 
@@ -1896,9 +1897,11 @@ function analyzeEmotion(speeds, pArr) {
 
 }
 
+
 function saveToSheet(n, avgP, maxP, avgS, emoData, ocrData) {
   const msg = document.getElementById('saveMsg');
-  msg.className = 'save-msg'; msg.textContent = '儲存中...';
+  msg.className = 'save-msg'; 
+  msg.textContent = '儲存中...';
   
   const payload = {
     session: 'session_' + Date.now(),
@@ -1909,12 +1912,11 @@ function saveToSheet(n, avgP, maxP, avgS, emoData, ocrData) {
   };
 
   fetch(GAS_URL, {
-    method: 'POST', 
-    // 💡 移除 mode: 'no-cors'，並將 Content-Type 改為 text/plain 繞過預檢
+    method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify(payload)
   })
-  .then(response => response.json()) // 解析 GAS 回傳的 JSON 格式
+  .then(response => response.json())
   .then(data => {
     if (data.success) {
       msg.className = 'save-msg ok'; 
@@ -1922,17 +1924,16 @@ function saveToSheet(n, avgP, maxP, avgS, emoData, ocrData) {
       document.getElementById('sheetLink').style.display = 'inline';
     } else {
       msg.className = 'save-msg err'; 
-      msg.textContent = '✗ 儲存失敗：' + data.error;
-      console.error("GAS 錯誤:", data.error);
+      msg.textContent = '✗ 儲存失敗：' + (data.error || '未知錯誤');
+      console.error("GAS 回傳錯誤:", data.error);
     }
   })
   .catch(err => {
-    console.error("Fetch 錯誤:", err);
+    console.error("網路/Fetch 錯誤:", err);
     msg.className = 'save-msg err'; 
     msg.textContent = '✗ 儲存失敗，請下載 CSV 備用';
   });
 }
-
 
 
 
