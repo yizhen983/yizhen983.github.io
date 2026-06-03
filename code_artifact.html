@@ -785,13 +785,12 @@ async function analyzeTextContent() {
     // 程式執行時會自動把字串翻轉還原，送出正確的金鑰
     let apiKey = reversedKey.split('').reverse().join('');
 
-    const promptText = `請精準辨識圖片中的手寫中文字。圖片中每個筆畫的起點皆標註了紅色的連續數字。
-請執行以下任務並以 JSON 格式回傳：
+const promptText = `請精準辨識圖片中的手寫中文字。圖片中每個筆畫的起點皆標註了紅色的連續數字（1代表第一筆，2代表第二筆）。
+請執行以下任務並務必以 JSON 格式回傳，絕不能遺漏任何欄位：
 1. 'text': 辨識出的文字。
-2. 'standard_strokes': 該字的教育部標準筆畫名稱與順序（例如：「大」為 1.橫 2.撇 3.捺）。
-3. 'user_strokes_observed': 請仔細觀察圖片上的紅色數字標號，描述你看到的使用者下筆方向與順序。
-4. 'is_stroke_order_correct': 布林值。比對上述兩項，完全相符才給 true。
-5. 'stroke_order_feedback': 若錯誤，指出差異（如：第2筆應為撇，但圖中標示2的軌跡為豎）；若正確，回傳「筆順完全正確」。`;
+2. 'analysis': 該文字的文化涵義、字形結構演變或情境分析（至少30字）。【重要限制：此欄位絕對不可包含任何關於「筆順」、「第幾筆」、「標準筆畫順序」或「使用者觀察」的描述，請純粹分析字義】。
+3. 'is_stroke_order_correct': 布林值。請務必嚴格依據「台灣教育部標準繁體字筆順」來檢查圖片上的數字順序是否與標準相符。
+4. 'stroke_order_feedback': 筆順的推論與具體反饋。請在此欄位先簡述「標準筆畫順序」與「使用者筆畫觀察」。若完全相符，請在最後加上「筆順完全正確，符合標準」；若有錯誤，請明確指出差異（例如：「第2筆應該是撇，但使用者寫成豎」）。不可留白。`;
 
     const payload = {
       contents: [{ role: "user", parts: [ { text: promptText }, { inlineData: { mimeType: "image/png", data: base64ImageData } } ] }],
